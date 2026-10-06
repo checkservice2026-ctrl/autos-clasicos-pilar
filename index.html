@@ -12,13 +12,13 @@
 [data-theme=dark]{--bg:#0e1015;--sf:#171a22;--tx:#eceef4;--mut:#9aa1b2;--bd:#272b37;--hd:rgba(23,26,34,.82);--inp:#10131a;--sh:0 1px 2px #0006,0 10px 28px #0005;color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--tx);transition:background .25s,color .25s;-webkit-text-size-adjust:100%}
 button,input,select{font:inherit}h2,h3{letter-spacing:-.01em}
-#splash{position:fixed;inset:0;background:radial-gradient(circle at 50% 40%,#2a2a2a,#0d0d0d);color:#f6f0e4;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:99;transition:opacity .6s}
+#splash{position:fixed;inset:0;background:radial-gradient(circle at 50% 40%,#ffffff,#e8e1d2);color:#1d1d1d;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:99;transition:opacity .6s}
 #splash h1{letter-spacing:.25em;font-weight:400;font-size:clamp(1.4rem,6vw,2.6rem);margin:.4em 1em;animation:up 2s ease both}
-#splash p{font-style:italic;color:#b8a77a;animation:up 2s .8s ease both}
+#splash p{font-style:italic;color:#8a7440;animation:up 2s .8s ease both}
 #splash #logo{width:min(88vw,460px);height:auto;max-height:52vh;object-fit:contain;animation:up 1.5s ease both}
-.pbar{width:min(70vw,360px);height:6px;border-radius:6px;background:#ffffff22;overflow:hidden;margin:1.6em 0 .5em}
-.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ac),#fff8);border-radius:6px}
-#ppct{color:#b8a77a;letter-spacing:.15em;font-size:.9rem;font-variant-numeric:tabular-nums}
+.pbar{width:min(70vw,360px);height:6px;border-radius:6px;background:#00000014;overflow:hidden;margin:1.6em 0 .5em}
+.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ac),color-mix(in srgb,var(--ac) 60%,#fff));border-radius:6px}
+#ppct{color:#8a7440;letter-spacing:.15em;font-size:.9rem;font-variant-numeric:tabular-nums}
 #login .lg{display:block;max-width:150px;max-height:130px;margin:0 auto .5em;object-fit:contain}
 @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1}}
 @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -139,7 +139,7 @@ DATABASE
 ============================== */
 const all=async c=>(await getDocs(collection(db,c))).docs.map(d=>({id:d.id,...d.data()}));
 const where1=async(c,f,v)=>(await getDocs(query(collection(db,c),where(f,'==',v)))).docs.map(d=>({id:d.id,...d.data()}));
-let me=null,role='SOCIO';
+let me=null,role='SOCIO',PERM=null;
 const staff=()=>['ADMIN','COMISION','ORGANIZADOR'].includes(role);
 
 /* ==============================
@@ -157,7 +157,7 @@ const splashDone=new Promise(r=>{const t0=performance.now(),f=$('#pfill'),pc=$('
   const step=n=>{const k=Math.min(1,(n-t0)/5000);f.style.width=(k*100)+'%';pc.textContent=Math.floor(k*100)+'%';if(k<1)requestAnimationFrame(step)};
   requestAnimationFrame(step);
   setTimeout(()=>{f.style.width='100%';pc.textContent='100%';r()},5000)});
-const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{me=u;if(u){try{const s=await getDoc(doc(db,'users',u.uid));role=s.exists()?s.data().role:'SOCIO'}catch{role='SOCIO'}}r();if(started)route()}));
+const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{me=u;if(u){try{const s=await getDoc(doc(db,'users',u.uid));role=s.exists()?s.data().role:'SOCIO'}catch{role='SOCIO'}try{const pd=await getDoc(doc(db,'config','permisos'));PERM=pd.exists()?(pd.data().map||null):null}catch{PERM=null}}r();if(started)route()}));
 let started=false;
 
 /* ==============================
@@ -300,7 +300,9 @@ acts.cinsc=async t=>{if(!confirm('¿Cancelar esta inscripción?'))return;const r
 /* ==============================
 MENÚ POR ROL
 ============================== */
-const navFor=()=>role==='SOCIO'?['cred','cal','gal','com']:role==='TESORERO'?['dash','cuotas','fin','socios','buscar','backup']:role==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>k!=='users'||role==='ADMIN');
+const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
+const effPerm=r=>(PERM&&PERM[r])?PERM[r]:defNav(r);
+const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');return l.length?l:['cred']};
 
 /* ==============================
 CAMPOS COMPLETOS Y CATEGORÍAS
@@ -477,9 +479,14 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
-const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','cal','com','gal','cred','buscar','backup','aud','users'];
+const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','cal','com','gal','cred','buscar','backup','aud','users','perm'];
 VIEWS.com=VIEWS.comunicados;
-VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];
+VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];VIEWS.perm=['Permisos',permView];
+const PR=['SOCIO','ORGANIZADOR','TESORERO','COMISION'];
+function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&VIEWS[k]);
+ main(`<h2>Permisos por rol</h2><p><small>Marcá qué módulos ve cada rol. ADMIN siempre ve todo.</small></p><div class="card wrap"><table><tr><th>Módulo</th>${PR.map(r=>`<th>${r}</th>`).join('')}</tr>${mods.map(k=>`<tr><td>${VIEWS[k][0]}</td>${PR.map(r=>`<td><input type="checkbox" class="pc" data-r="${r}" data-k="${k}" ${effPerm(r).includes(k)?'checked':''} style="width:22px;height:22px;min-height:0;margin:0"></td>`).join('')}</tr>`).join('')}</table></div><button class="b" data-a="permsave">Guardar</button><button class="b l" data-a="permreset">Restablecer</button><p><small>Los cambios se aplican la próxima vez que cada usuario abra la app. Esto oculta módulos; la protección real de los datos la dan las reglas de Firestore.</small></p>`)}
+acts.permsave=async()=>{const m={};PR.forEach(r=>m[r]=[]);document.querySelectorAll('.pc').forEach(c=>{if(c.checked)m[c.dataset.r].push(c.dataset.k)});try{await setDoc(doc(db,'config','permisos'),{map:m});PERM=m;toast('Permisos guardados')}catch(e){toast('No se pudo guardar: revisá las reglas de Firestore')}};
+acts.permreset=async()=>{try{await deleteDoc(doc(db,'config','permisos'));PERM=null;toast('Restablecido');permView()}catch(e){toast('No se pudo restablecer')}};
 const go=k=>{if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
 acts.nav=go;
 async function pubView(t){
