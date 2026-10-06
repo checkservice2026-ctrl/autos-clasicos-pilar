@@ -65,7 +65,7 @@ button{min-height:44px;-webkit-tap-highlight-color:transparent}input,select{font
 td:last-child{white-space:nowrap}
 @media(max-width:600px){td,th{padding:.4em .3em;font-size:.82rem}main{padding:.7em}.b{padding:.7em .9em}}
 @media(min-width:900px){#app{display:grid;grid-template-columns:230px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
-header{grid-column:1/3}nav{flex-direction:column;overflow:visible;padding:1em;position:sticky;top:58px;align-self:start;height:calc(100vh - 58px);border-right:1px solid var(--bd)}
+header{grid-column:1/3}nav{flex-direction:column;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;padding:1em;position:sticky;top:58px;align-self:start;height:calc(100vh - 58px);border-right:1px solid var(--bd)}
 nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-width:1150px;width:100%;margin:0;padding:1.5em 2em}}
 #scan{position:fixed;inset:0;background:#000;z-index:80;display:flex;flex-direction:column}
 #scan #reader{flex:1;min-height:0;overflow:hidden}#scan #reader>div,#scan #reader video{width:100%!important;height:100%!important;object-fit:cover}
@@ -511,11 +511,12 @@ acts.nav=go;
 async function pubView(t){
   $('#pub').classList.remove('hide');$('#pub').innerHTML='<div class="loader">Cargando…</div>';
   try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t)}
-  catch{$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div>'}
+  catch(x){console.error('pubView',x);$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'no-existe')+'</small></p>'}
 }
+const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐'};
 function route(){
   $('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
-  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML=navFor().map(k=>`<button data-a="nav" data-i="${k}">${VIEWS[k][0]}</button>`).join('');go(navFor()[0])}
+  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML=navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}</button>`).join('');go(navFor()[0])}
 }
 
 /* ==== APARIENCIA (tema, color, bordes) ==== */
@@ -547,7 +548,7 @@ async function insView(id){
   if(e.estado!=='PUBLICADO'||!e.inscripcionAbierta){P.innerHTML=`<div class="card">${head}<div class="res warn">La inscripción está cerrada</div></div>`;return}
   const F=(n,l,t='text')=>`<label>${l}</label><input name="${n}" type="${t}" autocomplete="off">`;
   P.innerHTML=`<div class="card">${head}<h3>Inscripción</h3>${F('nombre','Nombre *')}${F('apellido','Apellido *')}${F('dni','DNI *','tel')}${F('whatsapp','WhatsApp *','tel')}${F('email','Email (opcional)','email')}<label>¿Sos socio del club?</label><select name="esSocio"><option>NO</option><option>SI</option></select><h3>Vehículo</h3>${F('marca','Marca')}${F('modelo','Modelo')}${F('anio','Año','number')}<input name="web" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true"><button class="b big" data-a="insgo" data-i="${id}">INSCRIBIRME</button><p><small>Tu inscripción quedará pendiente hasta que la organización la confirme. Vas a recibir tu QR de acceso.</small></p></div>`;
- }catch{P.innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div>'}
+ }catch(x){console.error('insView',x);P.innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'evento-no-existe')+'</small></p>'}
 }
 acts.insgo=async id=>{
  const d=Object.fromEntries([...document.querySelectorAll('#pub [name]')].map(e=>[e.name,e.value.trim().slice(0,100)]));
