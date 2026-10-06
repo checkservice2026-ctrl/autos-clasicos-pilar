@@ -185,7 +185,7 @@ acts.dl=()=>{const c=$('#qr canvas');if(!c)return toast('QR no disponible');cons
 acts.cp=async t=>{await navigator.clipboard.writeText(linkOf(t));toast('Enlace copiado')};
 acts.wa=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data();
   const m=`Hola ${i.nombre.split(' ')[0]} 👋\n\nYa estás inscripto en el evento de Autos Clásicos Pilar.\n\nEvento:\n${i.eventoNombre}\n\nParticipante:\n${i.nombre}\n\nVehículo:\n${i.vehiculo||'-'}\n\nPresentá el QR al ingresar para acreditar tu participación.\n${linkOf(t)}\n\n¡Nos vemos!`;
-  let tel='';try{const p=(await getDoc(doc(db,i.tipoParticipante==='SOCIO'?'socios':'participantes',i.participanteId))).data()||{};tel=p.whatsapp||p.telefono||''}catch{}
+  let tel=i.whatsapp||i.telefono||'';if(!tel)try{const p=(await getDoc(doc(db,i.tipoParticipante==='SOCIO'?'socios':'participantes',i.participanteId))).data()||{};tel=p.whatsapp||p.telefono||''}catch{}
   let d=tel.replace(/\D/g,'').replace(/^0+/,'');if(d&&!d.startsWith('54'))d='54'+(d.startsWith('9')?'':'9')+d;
   window.open('https://wa.me/'+d+'?text='+encodeURIComponent(m),'_blank')};
 
@@ -227,7 +227,7 @@ PARTICIPANTES + INSCRIPCIONES
 ============================== */
 acts.ev=async id=>{
   loading();const e=(await getDoc(doc(db,'eventos',id))).data(),ins=await where1('inscripciones','eventoId',id);
-  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Inscriptos ${ins.filter(i=>i.estado!=='CANCELADO').length}/${esc(e.cupo||'∞')}</p>${staff()?`<button class="b" data-a="addp" data-i="${id}">+ Agregar participante</button>${e.estado==='PUBLICADO'?`<button class="b" data-a="acev" data-i="${id}">📷 Acreditar (escanear QR)</button>`:''}`:''}<div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo)}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td><button class="b" data-a="tk" data-i="${i.id}">QR</button>${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?`<button class="b g" data-a="cinsc" data-i="${i.id}">Cancelar</button>`:''}${staff()&&i.estado==='PREINSCRIPTO'?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}</td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
+  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Inscriptos ${ins.filter(i=>i.estado!=='CANCELADO').length}/${esc(e.cupo||'∞')}</p>${staff()?`<button class="b" data-a="addp" data-i="${id}">+ Agregar participante</button>${e.estado==='PUBLICADO'?`<button class="b" data-a="acev" data-i="${id}">📷 Acreditar (escanear QR)</button><button class=\"b l\" data-a=\"insl\" data-i=\"${id}\">🔗 Link de inscripción</button>`:''}`:''}<div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo)}${i.origen==='WEB'?` · 🌐 DNI ${esc(i.dni)} · ${esc(i.telefono)}`:''}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td><button class="b" data-a="tk" data-i="${i.id}">QR</button>${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?`<button class="b g" data-a="cinsc" data-i="${i.id}">Cancelar</button>`:''}${staff()&&i.estado==='PREINSCRIPTO'?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}</td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
 };
 acts.tk=async t=>showTicket({id:t,...(await getDoc(doc(db,'inscripciones',t))).data()});
 acts.addp=ev=>modal(`<h3>¿Es socio del club?</h3><button class="b big" data-a="psoc" data-i="${ev}">SÍ, ES SOCIO</button><button class="b l big" data-a="pinv" data-i="${ev}">NO, ES INVITADO</button>`);
@@ -254,20 +254,20 @@ async function inscribir(ev,pid,tipo,nombre,vehiculo,est){
 ACREDITACIÓN
 ============================== */
 let scanner=null;
-const offAccredit=async ref=>{try{const s=await getDocFromCache(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};if(i.acreditado)return{k:'warn',i};updateDoc(ref,{acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,updatedAt:serverTimestamp()}).catch(()=>{});return{k:'ok',i,off:true}}catch{return{k:'nocache'}}};
+const offAccredit=async ref=>{try{const s=await getDocFromCache(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};if(i.estado==='PREINSCRIPTO')return{k:'pend',i};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};if(i.acreditado)return{k:'warn',i};updateDoc(ref,{acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,updatedAt:serverTimestamp()}).catch(()=>{});return{k:'ok',i,off:true}}catch{return{k:'nocache'}}};
 acts.lst=async k=>{const ev=$('#evsel')?.value;if(!ev)return;const ins=(await where1('inscripciones','eventoId',ev)).filter(i=>i.estado!=='CANCELADO');const hr=d=>d?.toDate?d.toDate().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):'';
  const l=k==='in'?ins.filter(i=>i.acreditado).sort((x,y)=>(x.fechaAcreditacion?.seconds||0)-(y.fechaAcreditacion?.seconds||0)):ins.filter(i=>!i.acreditado).sort((x,y)=>String(x.nombre).localeCompare(String(y.nombre)));
  modal(`<h3>${k==='in'?'Ingresaron':'Faltan ingresar'} (${l.length} de ${ins.length})</h3><div class="wrap"><table>${l.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo||'')}</small></td><td>${k==='in'?hr(i.fechaAcreditacion):badge(i.estado)}</td></tr>`).join('')||'<tr><td class="empty">Nadie por ahora</td></tr>'}</table></div><button class="b l big" data-a="cm">Cerrar</button>`)};
 async function accredit(token){
   const ref=doc(db,'inscripciones',token.trim());let out;
-  try{if(!navigator.onLine)throw{code:'unavailable'};out=await Promise.race([new Promise((_,no)=>setTimeout(()=>no({code:'unavailable'}),6000)),runTransaction(db,async tx=>{const s=await tx.get(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};
+  try{if(!navigator.onLine)throw{code:'unavailable'};out=await Promise.race([new Promise((_,no)=>setTimeout(()=>no({code:'unavailable'}),6000)),runTransaction(db,async tx=>{const s=await tx.get(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};if(i.estado==='PREINSCRIPTO')return{k:'pend',i};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};
     if(i.acreditado)return{k:'warn',i};
     tx.update(ref,{acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,updatedAt:serverTimestamp()});return{k:'ok',i}})])}catch(x){out=(x&&['unavailable','deadline-exceeded','failed-precondition'].includes(x.code))?await offAccredit(ref):{k:'bad'}}
   const hr=d=>d?.toDate?d.toDate().toLocaleString('es-AR'):new Date().toLocaleString('es-AR');
   if(out.k==='ok'){addDoc(collection(db,'acreditaciones'),{inscripcionId:token,eventoId:out.i.eventoId,nombre:out.i.nombre,usuario:me.email,createdAt:serverTimestamp()});log('acreditacion','inscripciones',token)}
   $('#res').innerHTML=out.k==='ok'?`<div class="res ok">🟢 ACREDITACIÓN EXITOSA<br><b>${esc(out.i.nombre)}</b><br>${esc(out.i.vehiculo)}<br>Hora: ${new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}${out.off?'<br><small>📴 Guardado en el dispositivo, se sincroniza al volver internet</small>':''}</div>`
    :out.k==='warn'?`<div class="res warn">🟡 YA ACREDITADO<br><b>${esc(out.i.nombre)}</b><br>${hr(out.i.fechaAcreditacion)}<br>Por: ${esc(out.i.usuarioAcreditacion)}</div>`
-   :out.k==='nocache'?`<div class="res warn">📴 Sin conexión: este QR no está descargado en el dispositivo.<br><small>Abrí Acreditación con internet para descargar el evento.</small></div>`:out.k==='other'?`<div class="res warn">🟠 QR de otro evento<br>${esc(out.i.eventoNombre)}</div>`:`<div class="res bad">🔴 QR NO VÁLIDO</div>`;
+   :out.k==='pend'?`<div class="res warn">⏳ PREINSCRIPTO<br><b>${esc(out.i.nombre)}</b><br><small>Falta confirmar la inscripción. Confirmala en el evento y volvé a escanear.</small></div>`:out.k==='nocache'?`<div class="res warn">📴 Sin conexión: este QR no está descargado en el dispositivo.<br><small>Abrí Acreditación con internet para descargar el evento.</small></div>`:out.k==='other'?`<div class="res warn">🟠 QR de otro evento<br>${esc(out.i.eventoNombre)}</div>`:`<div class="res bad">🔴 QR NO VÁLIDO</div>`;
   evStats();
 }
 async function evStats(){const ev=$('#evsel').value;if(!ev)return;const ins=await where1('inscripciones','eventoId',ev);const a=ins.filter(i=>i.acreditado).sort((x,y)=>(y.fechaAcreditacion?.seconds||0)-(x.fechaAcreditacion?.seconds||0));
@@ -352,7 +352,7 @@ acts.gens=async()=>{const d=formData();if(!d.periodo||!+d.importe||!d.vencimient
   log('alta','cuotas','lote '+d.periodo);closeM();toast(n+' cuotas generadas');go('cuotas')};
 acts.csv=c=>csvOut(c);
 acts.csvf=k=>k==='deuda'?csvOut('cuotas',x=>x.estado!=='PAGADA','deuda'):k==='pagos'?csvOut('cuotas',x=>x.estado==='PAGADA','pagos'):csvOut('socios',x=>x.estado!=='ACTIVO','socios-inactivos');
-acts.conf=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data();await updateDoc(r,{estado:'CONFIRMADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId)};
+acts.conf=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data();await updateDoc(r,{estado:'CONFIRMADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId);if(i.origen==='WEB'&&confirm('Inscripción confirmada. ¿Enviarle el QR por WhatsApp?'))acts.wa(t)};
 
 /* ==============================
 USUARIOS Y ROLES (solo ADMIN)
@@ -510,7 +510,7 @@ const go=k=>{if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySe
 acts.nav=go;
 async function pubView(t){
   $('#pub').classList.remove('hide');$('#pub').innerHTML='<div class="loader">Cargando…</div>';
-  try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;$('#pub').innerHTML=ticketHtml({id:t,...s.data()});await qrCanvas($('#qr'),t)}
+  try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t)}
   catch{$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div>'}
 }
 function route(){
@@ -531,10 +531,41 @@ acts.cfg=()=>modal(cfgHtml());
 acts.ui=i=>{const[k,v]=i.split('|'),u=UI();u[k]=v;saveUI(u);applyUI(u);modal(cfgHtml())};
 acts.uireset=()=>{saveUI({});applyUI({});modal(cfgHtml())};
 const netUI=()=>$('#net').classList.toggle('hide',navigator.onLine);addEventListener('online',()=>{netUI();toast('Conexión restablecida · sincronizando')});addEventListener('offline',netUI);netUI();
-const m=location.hash.match(/^#acreditacion=(.+)$/);
+
+/* ==== INSCRIPCIÓN PÚBLICA POR LINK ==== */
+const insLink=id=>location.origin+location.pathname+'#inscripcion='+id;
+acts.insl=async id=>{const e=(await getDoc(doc(db,'eventos',id))).data(),ab=!!e.inscripcionAbierta;
+ modal(`<h3>Inscripción por link</h3><p>Estado: <b>${ab?'🟢 ABIERTA':'🔴 CERRADA'}</b></p><input readonly value="${insLink(id)}" onclick="this.select()"><div class="grid"><button class="b l" data-a="insc" data-i="${id}">COPIAR LINK</button><button class="b" data-a="insw" data-i="${id}">COMPARTIR WHATSAPP</button></div><button class="b ${ab?'g':''} big" data-a="inst" data-i="${id}|${ab?0:1}">${ab?'CERRAR INSCRIPCIÓN':'ABRIR INSCRIPCIÓN'}</button><p><small>Quienes se anoten quedan como PREINSCRIPTO hasta que los confirmes.</small></p><button class="b l big" data-a="cm">Cerrar</button>`)};
+acts.insc=async id=>{await navigator.clipboard.writeText(insLink(id));toast('Link copiado')};
+acts.insw=async id=>{const e=(await getDoc(doc(db,'eventos',id))).data();window.open('https://wa.me/?text='+encodeURIComponent(`🚗 Inscripción abierta: ${e.nombre}\n${e.fecha||''} ${e.hora||''} · ${e.lugar||''}\n\nAnotate acá:\n${insLink(id)}`),'_blank')};
+acts.inst=async k=>{const[id,v]=k.split('|');await updateDoc(doc(db,'eventos',id),{inscripcionAbierta:v==='1',updatedAt:serverTimestamp()});acts.insl(id)};
+async function insView(id){
+ const P=$('#pub');P.classList.remove('hide');P.innerHTML='<div class="loader">Cargando…</div>';
+ try{const prev=localStorage.getItem('ins-'+id);if(prev){location.hash='#acreditacion='+prev;return pubView(prev)}}catch{}
+ try{const sn=await getDoc(doc(db,'eventos',id));if(!sn.exists())throw 0;const e=sn.data();
+  const head=`<div style="text-align:center"><img src="logo.png" alt="" style="max-width:130px;max-height:110px" onerror="this.remove()"><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha||'')} ${esc(e.hora||'')} · ${esc(e.lugar||'')}</p></div>`;
+  if(e.estado!=='PUBLICADO'||!e.inscripcionAbierta){P.innerHTML=`<div class="card">${head}<div class="res warn">La inscripción está cerrada</div></div>`;return}
+  const F=(n,l,t='text')=>`<label>${l}</label><input name="${n}" type="${t}" autocomplete="off">`;
+  P.innerHTML=`<div class="card">${head}<h3>Inscripción</h3>${F('nombre','Nombre *')}${F('apellido','Apellido *')}${F('dni','DNI *','tel')}${F('whatsapp','WhatsApp *','tel')}${F('email','Email (opcional)','email')}<label>¿Sos socio del club?</label><select name="esSocio"><option>NO</option><option>SI</option></select><h3>Vehículo</h3>${F('marca','Marca')}${F('modelo','Modelo')}${F('anio','Año','number')}<input name="web" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true"><button class="b big" data-a="insgo" data-i="${id}">INSCRIBIRME</button><p><small>Tu inscripción quedará pendiente hasta que la organización la confirme. Vas a recibir tu QR de acceso.</small></p></div>`;
+ }catch{P.innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div>'}
+}
+acts.insgo=async id=>{
+ const d=Object.fromEntries([...document.querySelectorAll('#pub [name]')].map(e=>[e.name,e.value.trim().slice(0,100)]));
+ if(d.web)return;
+ if(!d.nombre||!d.apellido)return toast('Completá nombre y apellido');
+ if(d.dni.replace(/\D/g,'').length<6)return toast('Revisá el DNI');
+ if(d.whatsapp.replace(/\D/g,'').length<6)return toast('Revisá el WhatsApp');
+ const b=document.querySelector('#pub .b.big');b.disabled=true;b.textContent='Enviando…';
+ try{const e=(await getDoc(doc(db,'eventos',id))).data(),t=genToken();
+  await setDoc(doc(db,'inscripciones',t),{eventoId:id,eventoNombre:e.nombre,participanteId:t,tipoParticipante:'INVITADO',nombre:d.nombre+' '+d.apellido,vehiculo:[d.marca,d.modelo,d.anio].filter(Boolean).join(' '),dni:d.dni,telefono:d.whatsapp,whatsapp:d.whatsapp,email:d.email,esSocio:d.esSocio,origen:'WEB',fechaInscripcion:serverTimestamp(),estado:'PREINSCRIPTO',tokenQR:t,acreditado:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  try{localStorage.setItem('ins-'+id,t)}catch{}
+  location.hash='#acreditacion='+t;pubView(t);
+ }catch(x){b.disabled=false;b.textContent='INSCRIBIRME';toast('No se pudo enviar. Revisá tu conexión e intentá de nuevo.')}
+};
+const m=location.hash.match(/^#acreditacion=(.+)$/);const mi=location.hash.match(/^#inscripcion=(.+)$/);
 Promise.all([splashDone,m?Promise.resolve():authReady]).then(()=>{
   $('#splash').style.opacity=0;setTimeout(()=>$('#splash').remove(),600);
-  if(m)pubView(decodeURIComponent(m[1]));else{started=true;route()}
+  if(m)pubView(decodeURIComponent(m[1]));else if(mi)insView(decodeURIComponent(mi[1]));else{started=true;route()}
 });
 </script>
 <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
