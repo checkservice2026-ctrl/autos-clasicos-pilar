@@ -62,14 +62,14 @@ body{-webkit-text-size-adjust:100%}td:last-child{white-space:nowrap}
 </style>
 </head>
 <body>
-
+ 
 <div id="splash">
   <img id="logo" src="logo.png" alt="Autos Clásicos Pilar" onerror="this.style.display='none'">
   <div class="pbar"><i id="pfill"></i></div><div id="ppct">0%</div>
 </div>
-
+ 
 <div id="pub" class="hide" style="max-width:420px;margin:auto;padding:1em"></div>
-
+ 
 <div id="login" class="hide card">
   <img class="lg" src="logo.png" alt="" onerror="this.style.display='none'"><h2 style="text-align:center;color:var(--bordo);letter-spacing:.1em">AUTOS CLÁSICOS PILAR</h2>
   <label>Email</label><input id="em" type="email" autocomplete="username">
@@ -77,18 +77,18 @@ body{-webkit-text-size-adjust:100%}td:last-child{white-space:nowrap}
   <button class="b big" data-a="login">INGRESAR</button>
   <button class="b l big" data-a="reset" style="margin-top:.5em">Recuperar contraseña</button>
 </div>
-
+ 
 <div id="app" class="hide">
   <header><b>AUTOS CLÁSICOS PILAR</b><span><small id="who"></small> <button class="b g" data-a="logout">Salir</button></span></header>
   <nav id="nav"></nav>
   <main id="main"></main>
 </div>
 <div id="modal" class="hide"><div id="mbody"></div></div>
-
+ 
 <!-- LIBRERÍAS CDN: QR (generar) y lectura QR -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
+ 
 <script type="module">
 /* ==============================
 FIREBASE
@@ -96,19 +96,19 @@ FIREBASE
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,createUserWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {getFirestore,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,serverTimestamp,runTransaction} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
+ 
 // >>> PEGÁ ACÁ LAS CREDENCIALES (Firebase Console > Configuración del proyecto > Tus apps > Web) <<<
 const firebaseConfig = {
-  apiKey: "PEGAR_AQUI",
-  authDomain: "PEGAR_AQUI",
-  projectId: "PEGAR_AQUI",
-  storageBucket: "PEGAR_AQUI",
-  messagingSenderId: "PEGAR_AQUI",
-  appId: "PEGAR_AQUI"
+  apiKey: "AIzaSyAuhSJWPWWptsgf_O2s_5UbjpGurWj0nQ0",
+  authDomain: "autos-clasicos-pilar.firebaseapp.com",
+  projectId: "autos-clasicos-pilar",
+  storageBucket: "autos-clasicos-pilar.firebasestorage.app",
+  messagingSenderId: "694551333250",
+  appId: "1:694551333250:web:ba370af1150e781d6ae79b"
 };
 import {getStorage,ref,uploadBytes,getDownloadURL} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app),st=getStorage(app),auth2=getAuth(initializeApp(firebaseConfig,'sec'));
-
+ 
 /* ==============================
 UI
 ============================== */
@@ -123,7 +123,7 @@ const loading=()=>main('<div class="loader">Cargando…</div>');
 const badge=s=>`<span class="badge ${esc(s)}">${esc(s)}</span>`;
 const acts={};
 document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t&&acts[t.dataset.a])Promise.resolve(acts[t.dataset.a](t.dataset.i,t)).catch(x=>{console.error(x);toast('Error: '+(x.code||x.message))})});
-
+ 
 /* ==============================
 DATABASE
 ============================== */
@@ -131,12 +131,12 @@ const all=async c=>(await getDocs(collection(db,c))).docs.map(d=>({id:d.id,...d.
 const where1=async(c,f,v)=>(await getDocs(query(collection(db,c),where(f,'==',v)))).docs.map(d=>({id:d.id,...d.data()}));
 let me=null,role='SOCIO';
 const staff=()=>['ADMIN','COMISION','ORGANIZADOR'].includes(role);
-
+ 
 /* ==============================
 AUDITORÍA
 ============================== */
 const log=(accion,entidad,id)=>addDoc(collection(db,'auditoria'),{usuario:me?.email||'publico',accion,entidad,id,fecha:serverTimestamp(),createdAt:serverTimestamp()}).catch(()=>{});
-
+ 
 /* ==============================
 AUTHENTICATION
 ============================== */
@@ -149,7 +149,7 @@ const splashDone=new Promise(r=>{const t0=performance.now(),f=$('#pfill'),pc=$('
   setTimeout(()=>{f.style.width='100%';pc.textContent='100%';r()},5000)});
 const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{me=u;if(u){try{const s=await getDoc(doc(db,'users',u.uid));role=s.exists()?s.data().role:'SOCIO'}catch{role='SOCIO'}}r();if(started)route()}));
 let started=false;
-
+ 
 /* ==============================
 QR
 ============================== */
@@ -169,7 +169,7 @@ acts.wa=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data();
   let tel='';try{const p=(await getDoc(doc(db,i.tipoParticipante==='SOCIO'?'socios':'participantes',i.participanteId))).data()||{};tel=p.whatsapp||p.telefono||''}catch{}
   let d=tel.replace(/\D/g,'').replace(/^0+/,'');if(d&&!d.startsWith('54'))d='54'+(d.startsWith('9')?'':'9')+d;
   window.open('https://wa.me/'+d+'?text='+encodeURIComponent(m),'_blank')};
-
+ 
 /* ==============================
 SOCIOS / EVENTOS (CRUD)
 ============================== */
@@ -202,7 +202,7 @@ acts.save=async k=>{const[c,id]=k.split('|');const d=formData();if(c==='socios')
   if(id){await updateDoc(doc(db,c,id),{...d,updatedAt:serverTimestamp()});log('modificacion',c,id)}else{const r=await addDoc(collection(db,c),{...d,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});log('alta',c,r.id)}
   closeM();toast('Guardado');go(c)};
 acts.del=async k=>{const[c,id]=k.split('|');if(!confirm('¿Eliminar definitivamente?'))return;await deleteDoc(doc(db,c,id));log('baja',c,id);closeM();go(c)};
-
+ 
 /* ==============================
 PARTICIPANTES + INSCRIPCIONES
 ============================== */
@@ -230,7 +230,7 @@ async function inscribir(ev,pid,tipo,nombre,vehiculo,est){
   await setDoc(doc(db,'inscripciones',token),i);log('inscripcion','inscripciones',token);
   toast('Inscripción creada');showTicket({id:token,...i});
 }
-
+ 
 /* ==============================
 ACREDITACIÓN
 ============================== */
@@ -260,7 +260,7 @@ acts.scan=async()=>{
   try{await scanner.start({facingMode:'environment'},{fps:10,qrbox:240},async t=>{await scanner.stop();scanner=null;$('#reader').innerHTML='';accredit(t)})}
   catch{toast('No se pudo abrir la cámara: revisá los permisos (requiere HTTPS)')}
 };
-
+ 
 /* ==============================
 DASHBOARD
 ============================== */
@@ -273,7 +273,7 @@ async function dash(){
   const rec=au.sort((x,y)=>(y.fecha?.seconds||0)-(x.fecha?.seconds||0)).slice(0,6);
   main(`<h2>Panel</h2><div class="grid">${c(so.filter(x=>x.estado==='ACTIVO').length,'Socios activos')}${c(cu.filter(x=>x.estado!=='PAGADA').length,'Cuotas pendientes')}${c(i.filter(x=>x.estado!=='CANCELADO').length,'Participantes')}${c(i.filter(x=>x.acreditado).length,'Acreditados')}${c(money(I),'Ingresos')}${c(money(E),'Egresos')}${c(money(I-E),'Saldo')}</div><div class="card"><b>Ingresos vs egresos</b>${bar(I,'#2e7d32')}${bar(E,'#7a1426')}</div><div class="card"><b>Próximos eventos</b><br>${prox.map(x=>`${esc(x.fecha)} — ${esc(x.nombre)}`).join('<br>')||'<span class="empty">Sin eventos próximos</span>'}</div><div class="card"><b>Últimas actividades</b><br>${rec.map(x=>`${esc(x.usuario)} · ${esc(x.accion)} · ${esc(x.entidad)}`).join('<br>')||'<span class="empty">Sin actividad</span>'}</div>`);
 }
-
+ 
 /* ==============================
 FOTOS (socios, vehículos, eventos) - Firebase Storage
 ============================== */
@@ -286,12 +286,12 @@ acts.fup=async k=>{const fs=[...$('#pf').files];if(!fs.length)return toast('Eleg
   toast('Fotos subidas');acts.fotos(k)};
 acts.cinsc=async t=>{if(!confirm('¿Cancelar esta inscripción?'))return;const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data();
   await updateDoc(r,{estado:'CANCELADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId)};
-
+ 
 /* ==============================
 MENÚ POR ROL
 ============================== */
 const navFor=()=>role==='SOCIO'?['cred','cal','gal','com']:role==='TESORERO'?['dash','cuotas','fin','socios','buscar','backup']:role==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>k!=='users'||role==='ADMIN');
-
+ 
 /* ==============================
 CAMPOS COMPLETOS Y CATEGORÍAS
 ============================== */
@@ -305,7 +305,7 @@ Object.assign(FIELDS,{
  participantes:[['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['whatsapp','WhatsApp'],['email','Email','email'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],['patente','Patente'],['observaciones','Observaciones']]});
 Object.assign(COLS,{socios:['numero','apellido','nombre','dni','localidad','estado'],participantes:['nombre','apellido','dni','patente','tipo'],eventos:['nombre','tipo','fecha','lugar','cupo','estado'],vehiculos:['socioNumero','marca','modelo','anio','patente','estado']});
 const catCard=(t,a,col)=>{const m={};a.forEach(x=>{const k=x.categoria||'Sin categoría';m[k]=(m[k]||0)+(+x.importe||0)});const mx=Math.max(1,...Object.values(m));return `<div class="card"><b>${t}</b>${Object.entries(m).map(([k,v])=>`<div style="margin-top:.5em">${esc(k)} — ${money(v)}<div style="background:${col};height:10px;width:${v/mx*100}%;border-radius:5px"></div></div>`).join('')||'<div class="empty">Sin datos</div>'}</div>`};
-
+ 
 /* ==============================
 SOCIOS - FICHA / CUOTAS EN LOTE / REPORTES
 ============================== */
@@ -322,7 +322,7 @@ acts.gens=async()=>{const d=formData();if(!d.periodo||!+d.importe||!d.vencimient
 acts.csv=c=>csvOut(c);
 acts.csvf=k=>k==='deuda'?csvOut('cuotas',x=>x.estado!=='PAGADA','deuda'):k==='pagos'?csvOut('cuotas',x=>x.estado==='PAGADA','pagos'):csvOut('socios',x=>x.estado!=='ACTIVO','socios-inactivos');
 acts.conf=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data();await updateDoc(r,{estado:'CONFIRMADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId)};
-
+ 
 /* ==============================
 USUARIOS Y ROLES (solo ADMIN)
 ============================== */
@@ -336,7 +336,7 @@ acts.nus=async()=>{const d=formData();if(!d.email||d.password.length<6)return to
 acts.ur=id=>modal(`<h3>Cambiar rol</h3>${fld(['role','Rol',ROLES],'SOCIO')}<button class="b" data-a="urs" data-i="${id}">Guardar</button><button class="b l" data-a="cm">Cancelar</button>`);
 acts.urs=async id=>{await updateDoc(doc(db,'users',id),{role:formData().role,updatedAt:serverTimestamp()});log('cambio de estado','users',id);closeM();toast('Rol actualizado');go('users')};
 VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];
-
+ 
 /* ==============================
 ROUTER + VISTA PÚBLICA
 ============================== */
@@ -357,7 +357,7 @@ async function finView(){
   const mx=Math.max(1,...Object.values(mes).flatMap(v=>[v.i,v.e])),bar=(v,c)=>`<div style="background:${c};height:10px;width:${v/mx*100}%;border-radius:5px;margin:2px 0"></div>`;
   main(`<h2>Finanzas</h2><div class="grid"><div class="card"><div class="num">${money(sum(i))}</div>Ingresos</div><div class="card"><div class="num">${money(sum(e))}</div>Egresos</div><div class="card"><div class="num">${money(sum(i)-sum(e))}</div>Saldo</div></div><div class="card"><b>Por mes</b> <small>(verde ingresos · bordó egresos)</small>${Object.keys(mes).sort().map(k=>`<div style="margin-top:.6em">${k} — ${money(mes[k].i)} / ${money(mes[k].e)}${bar(mes[k].i,'#2e7d32')}${bar(mes[k].e,'#7a1426')}</div>`).join('')||'<div class="empty">Sin movimientos</div>'}</div>${catCard('Ingresos por categoría',i,'#2e7d32')}${catCard('Egresos por categoría',e,'#7a1426')}<button class="b" data-a="nav" data-i="ingresos">Ingresos</button><button class="b" data-a="nav" data-i="egresos">Egresos</button>`);
 }
-
+ 
 /* ==============================
 BUSCADOR GLOBAL
 ============================== */
@@ -366,7 +366,7 @@ async function buscar(){
   const cs=['socios','participantes','vehiculos','eventos','inscripciones'],flat=(await Promise.all(cs.map(all))).flatMap((a,k)=>a.map(x=>({c:cs[k],x})));
   $('#gq').oninput=e=>{const q=e.target.value.toLowerCase();$('#gr').innerHTML=q.length<2?'':flat.filter(o=>Object.values(o.x).filter(v=>typeof v==='string'||typeof v==='number').join(' ').toLowerCase().includes(q)).slice(0,30).map(o=>`<div class="card"><small>${o.c}</small><br><b>${esc(o.x.nombre||o.x.marca||o.x.patente)}</b> ${esc(o.x.apellido||o.x.modelo||'')} · ${esc(o.x.dni||o.x.patente||o.x.fecha||o.x.vehiculo||'')}</div>`).join('')||'<div class="empty">Sin resultados</div>'};
 }
-
+ 
 /* ==============================
 BACKUP, REPORTES Y AUDITORÍA
 ============================== */
@@ -383,14 +383,14 @@ acts.impok=async()=>{let n=0;for(const c of COLLS)for(const x of window._imp[c]|
 async function backupView(){main(`<h2>Backup y reportes</h2><div class="card"><button class="b" data-a="exp">EXPORTAR DATOS</button>${role==='ADMIN'?'<button class="b l" data-a="imp">IMPORTAR DATOS</button></div><div class="card"><b>Modo demostración</b><br><button class="b l" data-a="demo">Cargar datos demo</button><button class="b g" data-a="demoDel">Eliminar datos demo</button>':''}</div><div class="card"><b>Reportes CSV</b><br>${['socios','participantes','cuotas','ingresos','egresos','eventos','inscripciones','acreditaciones'].map(c=>`<button class="b l" data-a="csv" data-i="${c}">${c}</button>`).join('')}<button class="b l" data-a="csvf" data-i="deuda">deuda</button><button class="b l" data-a="csvf" data-i="pagos">pagos</button><button class="b l" data-a="csvf" data-i="inactivos">socios inactivos</button></div>`)}
 async function audView(){loading();const a=(await all('auditoria')).sort((x,y)=>(y.fecha?.seconds||0)-(x.fecha?.seconds||0)).slice(0,60);
   main(`<h2>Auditoría</h2><div class="card wrap"><table>${a.map(x=>`<tr><td>${x.fecha?.toDate?x.fecha.toDate().toLocaleString('es-AR'):''}</td><td>${esc(x.usuario)}</td><td>${esc(x.accion)}</td><td>${esc(x.entidad)}</td></tr>`).join('')}</table>${a.length?'':'<div class="empty">Sin registros</div>'}</div>`)}
-
+ 
 /* ==============================
 COMUNICADOS
 ============================== */
 Object.assign(FIELDS,{comunicados:[['titulo','Título'],['mensaje','Mensaje'],['imagen','Imagen (URL, opcional)'],['fecha','Fecha','date'],['estado','Estado','BORRADOR,PUBLICADO']],agenda:[['fecha','Fecha','date'],['titulo','Título'],['tipo','Tipo','REUNION,ACTIVIDAD,IMPORTANTE']]});
 Object.assign(COLS,{comunicados:['titulo','fecha','estado'],agenda:['fecha','titulo','tipo']});
 acts.cwa=async id=>{const c=(await getDoc(doc(db,'comunicados',id))).data();window.open('https://wa.me/?text='+encodeURIComponent('*'+c.titulo+'*\n\n'+c.mensaje+'\n\n— Autos Clásicos Pilar'),'_blank')};
-
+ 
 /* ==============================
 CALENDARIO
 ============================== */
@@ -405,7 +405,7 @@ async function calView(){
   main(`<h2>Calendario</h2><button class="b l" data-a="cal" data-i="-1">←</button><b>${calM.toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</b><button class="b l" data-a="cal" data-i="1">→</button>${staff()?'<button class="b" data-a="new" data-i="agenda">+ Actividad</button>':''}<div class="card" style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;gap:3px">${'LMMJVSD'.split('').map(x=>`<b>${x}</b>`).join('')}${cells}</div><div class="card">${mine.map(x=>`<div>${x.f.slice(8)} — ${esc(x.t)}</div>`).join('')||'<div class="empty">Sin fechas este mes</div>'}</div>`);
 }
 acts.cal=d=>{calM.setMonth(calM.getMonth()+ +d);calView()};
-
+ 
 /* ==============================
 CREDENCIAL DIGITAL
 ============================== */
@@ -419,7 +419,7 @@ async function credView(){
     await qrCanvas($('#cqr'),s.id)};
   if($('#cs'))$('#cs').onchange=draw;draw();
 }
-
+ 
 /* ==============================
 GALERÍA (Firebase Storage)
 ============================== */
@@ -434,7 +434,7 @@ acts.up=async()=>{const ev=$('#ge').value,fs=[...$('#gf').files];if(!ev||!fs.len
     const r=ref(st,'galeria/'+ev+'/'+Date.now()+'-'+f.name.replace(/[^\w.]/g,'_'));await uploadBytes(r,f);
     await addDoc(collection(db,'galeria'),{eventoId:ev,url:await getDownloadURL(r),createdAt:serverTimestamp()})}
   toast('Fotos subidas');gal()};
-
+ 
 /* ==============================
 DEMO (fácil de eliminar: todo lleva demo:true)
 ============================== */
@@ -455,7 +455,7 @@ acts.demo=async()=>{if(!confirm('¿Cargar datos de demostración?'))return;toast
     if(ac)await addDoc(collection(db,'acreditaciones'),{inscripcionId:tk,eventoId:evs[0].id,nombre:p.n,usuario:me.email,...ts()})}
   toast('Datos demo cargados');go('dash')};
 acts.demoDel=async()=>{if(!confirm('¿Eliminar TODOS los datos de demostración?'))return;for(const c of DEMOC)for(const x of await where1(c,'demo',true))await deleteDoc(doc(db,c,x.id));toast('Demo eliminada')};
-
+ 
 /* ==============================
 PWA (manifest generado desde este mismo archivo)
 ============================== */
@@ -463,7 +463,7 @@ const ico="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.or
 const man={name:'Autos Clásicos Pilar',short_name:'ACP',start_url:location.origin+location.pathname,scope:location.origin+location.pathname.replace(/[^/]*$/,''),display:'standalone',background_color:'#f6f0e4',theme_color:'#7a1426',icons:[{src:ico,sizes:'512x512',type:'image/svg+xml',purpose:'any'}]};
 {const l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(new Blob([JSON.stringify(man)],{type:'application/manifest+json'}));document.head.append(l)}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-
+ 
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
@@ -488,3 +488,4 @@ Promise.all([splashDone,m?Promise.resolve():authReady]).then(()=>{
 </script>
 </body>
 </html>
+ 
