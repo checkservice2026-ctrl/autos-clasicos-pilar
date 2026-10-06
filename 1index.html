@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#7a1426"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Autos Clásicos Pilar</title>
+<style>
+/* ==============================
+UI - ESTILOS
+============================== */
+:root{--bordo:#7a1426;--negro:#151515;--crema:#f6f0e4;--gris:#6b6b6b;--metal:#b8a77a;--bl:#fff}
+*{box-sizing:border-box}body{margin:0;font-family:Georgia,'Times New Roman',serif;background:var(--crema);color:var(--negro)}
+button,input,select{font:inherit}
+#splash{position:fixed;inset:0;background:radial-gradient(circle at 50% 40%,#2a2a2a,#0d0d0d);color:var(--crema);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:99;transition:opacity .6s}
+#splash h1{letter-spacing:.25em;font-weight:400;font-size:clamp(1.4rem,6vw,2.6rem);margin:.4em 1em;animation:up 2s ease both}
+#splash p{font-style:italic;color:var(--metal);animation:up 2s .8s ease both}
+#splash #logo{width:min(60vw,260px);height:auto;max-height:38vh;object-fit:contain;animation:up 1.5s ease both}
+.pbar{width:min(70vw,360px);height:8px;border-radius:6px;background:#ffffff22;overflow:hidden;margin:1.6em 0 .5em;border:1px solid var(--metal)}
+.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--bordo),#c0344c)}
+#ppct{color:var(--metal);letter-spacing:.15em;font-size:.95rem;font-variant-numeric:tabular-nums}
+#login .lg{display:block;max-width:150px;max-height:130px;margin:0 auto .5em;object-fit:contain}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes drive{from{transform:translateX(-40vw);opacity:0}30%{opacity:1}to{transform:translateX(0)}}
+.hide{display:none!important}
+header{background:var(--negro);color:var(--crema);padding:.7em 1em;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--bordo);position:sticky;top:0;z-index:5}
+header b{letter-spacing:.12em}
+nav{display:flex;gap:.4em;overflow-x:auto;padding:.5em;background:#e9e0cc}
+nav button{white-space:nowrap;border:1px solid var(--metal);background:var(--bl);padding:.5em .9em;border-radius:20px;cursor:pointer}
+nav button.on{background:var(--bordo);color:#fff;border-color:var(--bordo)}
+main{padding:1em;max-width:980px;margin:auto}
+.card{background:var(--bl);border:1px solid #ddd;border-radius:12px;padding:1em;margin:.6em 0;box-shadow:0 2px 6px #0001}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7em}
+.num{font-size:2rem;color:var(--bordo)}
+.b{background:var(--bordo);color:#fff;border:0;padding:.7em 1.1em;border-radius:8px;cursor:pointer;margin:.2em}
+.b.g{background:#444}.b.l{background:#fff;color:var(--bordo);border:1px solid var(--bordo)}.b.big{width:100%;padding:1.2em;font-size:1.2rem}
+input,select{width:100%;padding:.7em;margin:.25em 0 .7em;border:1px solid #bbb;border-radius:8px;background:#fff}
+label{font-size:.85rem;color:var(--gris)}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:.5em;border-bottom:1px solid #eee;font-size:.92rem}
+.wrap{overflow-x:auto}
+.badge{padding:.15em .6em;border-radius:10px;font-size:.75rem;background:#ddd}
+.ACTIVO,.CONFIRMADO,.PUBLICADO{background:#cfe8d0}.ACREDITADO{background:#bcd8f5}.BAJA,.CANCELADO{background:#f3c6c6}.SUSPENDIDO,.PREINSCRIPTO,.BORRADOR{background:#f5e6b3}
+#modal{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:50}
+#modal>div{background:var(--crema);width:100%;max-width:520px;max-height:92vh;overflow:auto;padding:1em;border-radius:14px 14px 0 0}
+@media(min-width:600px){#modal{align-items:center}#modal>div{border-radius:14px}}
+#toast{position:fixed;bottom:1em;left:50%;transform:translateX(-50%);background:var(--negro);color:#fff;padding:.7em 1.2em;border-radius:20px;z-index:99}
+.res{text-align:center;padding:1.5em;border-radius:12px;color:#fff;font-size:1.3rem}
+.ok{background:#2e7d32}.warn{background:#b8860b}.bad{background:#b3261e}
+.tk{text-align:center;border:2px solid var(--metal);border-radius:14px;padding:1em;background:#fff}
+.tk h3{letter-spacing:.15em;color:var(--bordo);margin:.2em}
+.empty{text-align:center;color:var(--gris);padding:1.5em}
+.loader{text-align:center;padding:2em;color:var(--gris)}
+#login{max-width:380px;margin:12vh auto;padding:1em}
+button{min-height:44px;-webkit-tap-highlight-color:transparent}input,select{font-size:16px;min-height:44px}
+body{-webkit-text-size-adjust:100%}td:last-child{white-space:nowrap}
+@media(max-width:600px){td,th{padding:.4em .3em;font-size:.82rem}main{padding:.7em}.b{padding:.7em .8em}}
+@media(min-width:900px){#app{display:grid;grid-template-columns:230px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
+ header{grid-column:1/3}nav{flex-direction:column;overflow:visible;padding:1em;position:sticky;top:58px;align-self:start;height:calc(100vh - 58px);border-right:1px solid #d6cbb2}
+ nav button{border-radius:8px;text-align:left;width:100%}main{max-width:1150px;width:100%;margin:0;padding:1.5em 2em}#modal{align-items:center}#modal>div{border-radius:14px}}
+@media print{header,nav,main,#login,.b{display:none!important}#modal{position:static;background:none}}
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <img id="logo" src="logo.png" alt="Autos Clásicos Pilar" onerror="this.style.display='none'">
+  <div class="pbar"><i id="pfill"></i></div><div id="ppct">0%</div>
+</div>
+
+<div id="pub" class="hide" style="max-width:420px;margin:auto;padding:1em"></div>
+
+<div id="login" class="hide card">
+  <img class="lg" src="logo.png" alt="" onerror="this.style.display='none'"><h2 style="text-align:center;color:var(--bordo);letter-spacing:.1em">AUTOS CLÁSICOS PILAR</h2>
+  <label>Email</label><input id="em" type="email" autocomplete="username">
+  <label>Contraseña</label><input id="pw" type="password" autocomplete="current-password">
+  <button class="b big" data-a="login">INGRESAR</button>
+  <button class="b l big" data-a="reset" style="margin-top:.5em">Recuperar contraseña</button>
+</div>
+
+<div id="app" class="hide">
+  <header><b>AUTOS CLÁSICOS PILAR</b><span><small id="who"></small> <button class="b g" data-a="logout">Salir</button></span></header>
+  <nav id="nav"></nav>
+  <main id="main"></main>
+</div>
+<div id="modal" class="hide"><div id="mbody"></div></div>
+
+<!-- LIBRERÍAS CDN: QR (generar) y lectura QR -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script type="module">
+/* ==============================
+FIREBASE
+============================== */
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,createUserWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,serverTimestamp,runTransaction} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// >>> PEGÁ ACÁ LAS CREDENCIALES (Firebase Console > Configuración del proyecto > Tus apps > Web) <<<
+const firebaseConfig = {
+  apiKey: "PEGAR_AQUI",
+  authDomain: "PEGAR_AQUI",
+  projectId: "PEGAR_AQUI",
+  storageBucket: "PEGAR_AQUI",
+  messagingSenderId: "PEGAR_AQUI",
+  appId: "PEGAR_AQUI"
+};
+import {getStorage,ref,uploadBytes,getDownloadURL} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app),st=getStorage(app),auth2=getAuth(initializeApp(firebaseConfig,'sec'));
+
+/* ==============================
+UI
+============================== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast=m=>{let t=document.createElement('div');t.id='toast';t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),2800)};
+const modal=h=>{$('#mbody').innerHTML=h;$('#modal').classList.remove('hide')};
+const closeM=()=>{$('#modal').classList.add('hide');$('#mbody').innerHTML=''};
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeM()});
+const main=h=>$('#main').innerHTML=h;
+const loading=()=>main('<div class="loader">Cargando…</div>');
+const badge=s=>`<span class="badge ${esc(s)}">${esc(s)}</span>`;
+const acts={};
+document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t&&acts[t.dataset.a])Promise.resolve(acts[t.dataset.a](t.dataset.i,t)).catch(x=>{console.error(x);toast('Error: '+(x.code||x.message))})});
+
+/* ==============================
+DATABASE
+============================== */
+const all=async c=>(await getDocs(collection(db,c))).docs.map(d=>({id:d.id,...d.data()}));
+const where1=async(c,f,v)=>(await getDocs(query(collection(db,c),where(f,'==',v)))).docs.map(d=>({id:d.id,...d.data()}));
+let me=null,role='SOCIO';
+const staff=()=>['ADMIN','COMISION','ORGANIZADOR'].includes(role);
+
+/* ==============================
+AUDITORÍA
+============================== */
+const log=(accion,entidad,id)=>addDoc(collection(db,'auditoria'),{usuario:me?.email||'publico',accion,entidad,id,fecha:serverTimestamp(),createdAt:serverTimestamp()}).catch(()=>{});
+
+/* ==============================
+AUTHENTICATION
+============================== */
+acts.login=()=>signInWithEmailAndPassword(auth,$('#em').value.trim(),$('#pw').value).catch(()=>toast('Credenciales incorrectas'));
+acts.reset=async()=>{const e=$('#em').value.trim();if(!e)return toast('Ingresá tu email');await sendPasswordResetEmail(auth,e);toast('Te enviamos un correo para restablecer la contraseña')};
+acts.logout=()=>signOut(auth);
+const splashDone=new Promise(r=>{const t0=performance.now(),f=$('#pfill'),pc=$('#ppct');
+  const step=n=>{const k=Math.min(1,(n-t0)/5000);f.style.width=(k*100)+'%';pc.textContent=Math.floor(k*100)+'%';if(k<1)requestAnimationFrame(step)};
+  requestAnimationFrame(step);
+  setTimeout(()=>{f.style.width='100%';pc.textContent='100%';r()},5000)});
+const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{me=u;if(u){try{const s=await getDoc(doc(db,'users',u.uid));role=s.exists()?s.data().role:'SOCIO'}catch{role='SOCIO'}}r();if(started)route()}));
+let started=false;
+
+/* ==============================
+QR
+============================== */
+const genToken=()=>{const a=new Uint8Array(16);crypto.getRandomValues(a);return 'ACP-'+new Date().getFullYear()+'-'+[...a].map(b=>b.toString(16).padStart(2,'0')).join('')};
+const linkOf=t=>location.origin+location.pathname+'#acreditacion='+t;
+const qrCanvas=async(el,t)=>{const c=document.createElement('canvas');await QRCode.toCanvas(c,t,{width:220,margin:1});el.append(c);return c};
+const ticketHtml=i=>`<div class="tk"><div>AUTOS CLÁSICOS PILAR</div><h3>${esc(i.eventoNombre)}</h3><b>${esc(i.nombre)}</b><br>${esc(i.vehiculo||'')}<br>${badge(i.estado)}<div id="qr" style="margin:.8em"></div><small>${esc(i.id)}</small></div>`;
+const showTicket=async i=>{
+  modal(ticketHtml(i)+`<div class="grid" style="margin-top:.7em"><button class="b" data-a="dl" data-i="${i.id}">DESCARGAR QR</button><button class="b l" data-a="cp" data-i="${i.id}">COPIAR ENLACE</button><button class="b" data-a="wa" data-i="${i.id}">COMPARTIR WHATSAPP</button><button class="b g" onclick="window.print()">IMPRIMIR</button></div><button class="b l big" data-a="cm">Cerrar</button>`);
+  await qrCanvas($('#qr'),i.id);
+};
+acts.cm=closeM;
+acts.dl=()=>{const c=$('#qr canvas'),a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='qr-acp.png';a.click()};
+acts.cp=async t=>{await navigator.clipboard.writeText(linkOf(t));toast('Enlace copiado')};
+acts.wa=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data();
+  const m=`Hola ${i.nombre.split(' ')[0]} 👋\n\nYa estás inscripto en el evento de Autos Clásicos Pilar.\n\nEvento:\n${i.eventoNombre}\n\nParticipante:\n${i.nombre}\n\nVehículo:\n${i.vehiculo||'-'}\n\nPresentá el QR al ingresar para acreditar tu participación.\n${linkOf(t)}\n\n¡Nos vemos!`;
+  let tel='';try{const p=(await getDoc(doc(db,i.tipoParticipante==='SOCIO'?'socios':'participantes',i.participanteId))).data()||{};tel=p.whatsapp||p.telefono||''}catch{}
+  let d=tel.replace(/\D/g,'').replace(/^0+/,'');if(d&&!d.startsWith('54'))d='54'+(d.startsWith('9')?'':'9')+d;
+  window.open('https://wa.me/'+d+'?text='+encodeURIComponent(m),'_blank')};
+
+/* ==============================
+SOCIOS / EVENTOS (CRUD)
+============================== */
+const FIELDS={
+ socios:[['numero','Nº de socio'],['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['email','Email','email'],['categoria','Categoría'],['estado','Estado','ACTIVO,SUSPENDIDO,BAJA']],
+ eventos:[['nombre','Nombre'],['fecha','Fecha','date'],['hora','Hora','time'],['lugar','Lugar'],['cupo','Cupo','number'],['estado','Estado','BORRADOR,PUBLICADO,FINALIZADO,CANCELADO']]};
+Object.assign(FIELDS,{
+ vehiculos:[['socioNumero','Nº de socio'],['marca','Marca'],['modelo','Modelo'],['version','Versión'],['anio','Año','number'],['patente','Patente'],['color','Color'],['motor','Motor'],['chasis','Chasis'],['tipo','Tipo','AUTO,PICKUP,MOTO,OTRO'],['condicion','Condición','ORIGINAL,RESTAURADO,MODIFICADO'],['descripcion','Descripción / historia']],
+ cuotas:[['socio','Socio (Nº o nombre)'],['periodo','Período (AAAA-MM)'],['importe','Importe','number'],['vencimiento','Vencimiento','date'],['fechaPago','Fecha de pago','date'],['medio','Medio de pago'],['estado','Estado','PENDIENTE,PAGADA,VENCIDA']],
+ ingresos:[['fecha','Fecha','date'],['categoria','Categoría'],['concepto','Concepto'],['importe','Importe','number']],
+ egresos:[['fecha','Fecha','date'],['categoria','Categoría'],['concepto','Concepto'],['importe','Importe','number']]});
+const COLS={socios:['numero','apellido','nombre','dni','estado'],eventos:['nombre','fecha','lugar','cupo','estado'],vehiculos:['socioNumero','marca','modelo','anio','patente','tipo'],cuotas:['socio','periodo','importe','vencimiento','estado'],ingresos:['fecha','categoria','concepto','importe'],egresos:['fecha','categoria','concepto','importe']};
+const can=c=>['cuotas','ingresos','egresos'].includes(c)?['ADMIN','COMISION','TESORERO'].includes(role):staff();
+const fld=(f,v)=>`<label>${f[1]}</label>`+(f[2]&&f[2].includes(',')?`<select name="${f[0]}">${f[2].split(',').map(o=>`<option ${o==v?'selected':''}>${o}</option>`).join('')}</select>`:`<input name="${f[0]}" type="${f[2]||'text'}" value="${esc(v||'')}">`);
+const formData=()=>Object.fromEntries([...$('#mbody').querySelectorAll('[name]')].map(e=>[e.name,e.value.trim()]));
+async function listView(c,title){
+  loading();const rows=await all(c);
+  if(c==='cuotas'&&can(c))for(const r of rows)if(r.estado==='PENDIENTE'&&r.vencimiento&&r.vencimiento<today()){r.estado='VENCIDA';updateDoc(doc(db,'cuotas',r.id),{estado:'VENCIDA',updatedAt:serverTimestamp()}).catch(()=>{})}
+  const est=(FIELDS[c].find(f=>f[0]==='estado')||[])[2];
+  const btn=r=>[c==='socios'?`<button class="b l" data-a="ficha" data-i="${r.id}">Ficha</button>`:'',c==='eventos'?`<button class="b" data-a="ev" data-i="${r.id}">Abrir</button>`:'',['socios','vehiculos','eventos'].includes(c)?`<button class="b l" data-a="fotos" data-i="${c}/${r.id}">Fotos</button>`:'',c==='comunicados'?`<button class="b" data-a="cwa" data-i="${r.id}">WhatsApp</button>`:'',c==='cuotas'&&can(c)&&r.estado!=='PAGADA'?`<button class="b" data-a="pay" data-i="${r.id}">Cobrar</button>`:'',can(c)?`<button class="b l" data-a="edit" data-i="${c}|${r.id}">Editar</button>`:''].join('');
+  main(`<h2>${title} <small>(${rows.length})</small></h2>${can(c)?`<button class="b" data-a="new" data-i="${c}">+ Nuevo</button>`:''}${c==='cuotas'&&can(c)?'<button class="b l" data-a="gen">Generar cuotas del mes</button>':''}<div style="display:flex;gap:.5em;flex-wrap:wrap"><input id="q" placeholder="Buscar…" style="flex:2;min-width:160px">${est?`<select id="fe" style="flex:1;min-width:130px"><option value="">Todos los estados</option>${est.split(',').map(o=>`<option>${o}</option>`).join('')}</select>`:''}</div><div class="card wrap"><table><tr>${COLS[c].map(k=>`<th>${k}</th>`).join('')}<th></th></tr>${rows.map(r=>`<tr data-s="${esc(Object.values(r).filter(v=>typeof v!=='object').join(' ').toLowerCase())}" data-e="${esc(r.estado||'')}">${COLS[c].map(k=>`<td>${k==='estado'?badge(r[k]):esc(r[k])}</td>`).join('')}<td>${btn(r)}</td></tr>`).join('')}</table>${rows.length?'':'<div class="empty">Sin registros todavía</div>'}</div>`);
+  const ap=()=>{const q=$('#q').value.toLowerCase(),e=$('#fe')?$('#fe').value:'';document.querySelectorAll('tr[data-s]').forEach(tr=>tr.classList.toggle('hide',!tr.dataset.s.includes(q)||!!(e&&tr.dataset.e!==e)))};
+  $('#q').oninput=ap;if($('#fe'))$('#fe').onchange=ap;
+}
+acts.new=c=>formModal(c,null,{});
+acts.edit=async k=>{const[c,id]=k.split('|');formModal(c,id,(await getDoc(doc(db,c,id))).data())};
+function formModal(c,id,v){modal(`<h3>${id?'Editar':'Nuevo'}</h3>${FIELDS[c].map(f=>fld(f,v[f[0]])).join('')}<button class="b" data-a="save" data-i="${c}|${id||''}">Guardar</button>${id?`<button class="b g" data-a="del" data-i="${c}|${id}">Eliminar</button>`:''}<button class="b l" data-a="cm">Cancelar</button>`)}
+acts.save=async k=>{const[c,id]=k.split('|');const d=formData();if(c==='socios'){if(!d.nombre||!d.apellido||!d.numero)return toast('Nº de socio, nombre y apellido son obligatorios');const dp=(await where1('socios','numero',d.numero)).find(x=>x.id!==id);if(dp)return toast('Ese Nº de socio ya existe')}if(c==='participantes')d.tipo='INVITADO';if(c==='eventos'&&!d.nombre)return toast('Falta el nombre');
+  if(d.cupo)d.cupo=+d.cupo;if(d.importe)d.importe=+d.importe;if(d.anio)d.anio=+d.anio;
+  if(id){await updateDoc(doc(db,c,id),{...d,updatedAt:serverTimestamp()});log('modificacion',c,id)}else{const r=await addDoc(collection(db,c),{...d,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});log('alta',c,r.id)}
+  closeM();toast('Guardado');go(c)};
+acts.del=async k=>{const[c,id]=k.split('|');if(!confirm('¿Eliminar definitivamente?'))return;await deleteDoc(doc(db,c,id));log('baja',c,id);closeM();go(c)};
+
+/* ==============================
+PARTICIPANTES + INSCRIPCIONES
+============================== */
+acts.ev=async id=>{
+  loading();const e=(await getDoc(doc(db,'eventos',id))).data(),ins=await where1('inscripciones','eventoId',id);
+  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Inscriptos ${ins.filter(i=>i.estado!=='CANCELADO').length}/${esc(e.cupo||'∞')}</p>${staff()?`<button class="b" data-a="addp" data-i="${id}">+ Agregar participante</button>`:''}<div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo)}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td><button class="b" data-a="tk" data-i="${i.id}">QR</button>${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?`<button class="b g" data-a="cinsc" data-i="${i.id}">Cancelar</button>`:''}${staff()&&i.estado==='PREINSCRIPTO'?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}</td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
+};
+acts.tk=async t=>showTicket({id:t,...(await getDoc(doc(db,'inscripciones',t))).data()});
+acts.addp=ev=>modal(`<h3>¿Es socio del club?</h3><button class="b big" data-a="psoc" data-i="${ev}">SÍ, ES SOCIO</button><button class="b l big" data-a="pinv" data-i="${ev}">NO, ES INVITADO</button>`);
+acts.psoc=async ev=>{const s=(await all('socios')).filter(x=>x.estado!=='BAJA');window._s=s;
+  modal(`<h3>Buscar socio</h3><input id="sq" placeholder="Nº, nombre, apellido o DNI"><div id="sr"></div><label>Estado de inscripción</label><select id="se"><option>CONFIRMADO</option><option>PREINSCRIPTO</option></select><label>Vehículo (opcional)</label><input id="sv" placeholder="Ford Falcon 1972">`);
+  const draw=()=>{const q=$('#sq').value.toLowerCase();$('#sr').innerHTML=s.filter(x=>[x.numero,x.nombre,x.apellido,x.dni].join(' ').toLowerCase().includes(q)).slice(0,8).map(x=>`<div class="card"><b>${esc(x.apellido)}, ${esc(x.nombre)}</b> · Nº ${esc(x.numero)}<br><button class="b" data-a="pick" data-i="${ev}|${x.id}">Seleccionar</button></div>`).join('')||'<div class="empty">Sin resultados</div>'};
+  $('#sq').oninput=draw;draw()};
+acts.pick=async k=>{const[ev,sid]=k.split('|');const s=window._s.find(x=>x.id===sid);await inscribir(ev,sid,'SOCIO',s.nombre+' '+s.apellido,$('#sv').value.trim(),$('#se').value)};
+acts.pinv=ev=>modal(`<h3>Invitado</h3>${[['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['whatsapp','WhatsApp'],['email','Email'],['observaciones','Observaciones'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],['patente','Patente'],['estadoIns','Estado de inscripción','CONFIRMADO,PREINSCRIPTO']].map(f=>fld(f,'')).join('')}<button class="b" data-a="saveinv" data-i="${ev}">Inscribir</button>`);
+acts.saveinv=async ev=>{const d=formData();if(!d.nombre||!d.apellido)return toast('Nombre y apellido obligatorios');const est=d.estadoIns;delete d.estadoIns;
+  const r=await addDoc(collection(db,'participantes'),{...d,tipo:'INVITADO',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  await inscribir(ev,r.id,'INVITADO',d.nombre+' '+d.apellido,[d.marca,d.modelo,d.anio].filter(Boolean).join(' '),est)};
+async function inscribir(ev,pid,tipo,nombre,vehiculo,est){
+  const dup=(await where1('inscripciones','eventoId',ev)).find(i=>i.participanteId===pid&&i.estado!=='CANCELADO');
+  if(dup)return toast('Ya está inscripto en este evento');
+  const e=(await getDoc(doc(db,'eventos',ev))).data(),token=genToken();
+  const act=(await where1('inscripciones','eventoId',ev)).filter(i=>i.estado!=='CANCELADO').length;if(e.cupo&&act>=e.cupo)return toast('Cupo completo ('+e.cupo+')');
+  const i={eventoId:ev,eventoNombre:e.nombre,participanteId:pid,tipoParticipante:tipo,nombre,vehiculo,fechaInscripcion:serverTimestamp(),estado:est||'CONFIRMADO',tokenQR:token,acreditado:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
+  await setDoc(doc(db,'inscripciones',token),i);log('inscripcion','inscripciones',token);
+  toast('Inscripción creada');showTicket({id:token,...i});
+}
+
+/* ==============================
+ACREDITACIÓN
+============================== */
+let scanner=null;
+async function accredit(token){
+  const ref=doc(db,'inscripciones',token.trim());let out;
+  try{out=await runTransaction(db,async tx=>{const s=await tx.get(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};
+    if(i.acreditado)return{k:'warn',i};
+    tx.update(ref,{acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,updatedAt:serverTimestamp()});return{k:'ok',i}})}catch(x){out={k:'bad'}}
+  const hr=d=>d?.toDate?d.toDate().toLocaleString('es-AR'):new Date().toLocaleString('es-AR');
+  if(out.k==='ok'){addDoc(collection(db,'acreditaciones'),{inscripcionId:token,eventoId:out.i.eventoId,nombre:out.i.nombre,usuario:me.email,createdAt:serverTimestamp()});log('acreditacion','inscripciones',token)}
+  $('#res').innerHTML=out.k==='ok'?`<div class="res ok">🟢 ACREDITACIÓN EXITOSA<br><b>${esc(out.i.nombre)}</b><br>${esc(out.i.vehiculo)}<br>Hora: ${new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</div>`
+   :out.k==='warn'?`<div class="res warn">🟡 YA ACREDITADO<br><b>${esc(out.i.nombre)}</b><br>${hr(out.i.fechaAcreditacion)}<br>Por: ${esc(out.i.usuarioAcreditacion)}</div>`
+   :out.k==='other'?`<div class="res warn">🟠 QR de otro evento<br>${esc(out.i.eventoNombre)}</div>`:`<div class="res bad">🔴 QR NO VÁLIDO</div>`;
+  evStats();
+}
+async function evStats(){const ev=$('#evsel').value;if(!ev)return;const ins=await where1('inscripciones','eventoId',ev);const a=ins.filter(i=>i.acreditado).sort((x,y)=>(y.fechaAcreditacion?.seconds||0)-(x.fechaAcreditacion?.seconds||0));
+  $('#stats').innerHTML=`<div class="card"><div class="num">${a.length} / ${ins.filter(i=>i.estado!=='CANCELADO').length}</div>ACREDITADOS<hr>Últimas:<br>${a.slice(0,5).map(i=>esc(i.nombre)).join('<br>')||'—'}</div>`}
+async function acredView(modo){
+  loading();const evs=(await all('eventos')).filter(e=>e.estado==='PUBLICADO');
+  main(`<h2>${modo?'MODO EVENTO':'ACREDITACIÓN'}</h2><select id="evsel">${evs.map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join('')||'<option value="">Sin eventos publicados</option>'}</select><button class="b big" data-a="scan"${modo?' style="position:fixed;left:1em;right:1em;bottom:calc(1em + env(safe-area-inset-bottom));width:auto;z-index:6;padding:1.4em;font-size:1.3rem"':''}>ESCANEAR QR</button><div id="reader"></div><div id="res"></div><div id="stats"></div>${modo?'<div style="height:6em"></div>':''}`);
+  $('#evsel').onchange=evStats;evStats();
+}
+acts.scan=async()=>{
+  if(scanner){try{await scanner.stop()}catch{}}
+  scanner=new Html5Qrcode('reader');$('#res').innerHTML='';
+  try{await scanner.start({facingMode:'environment'},{fps:10,qrbox:240},async t=>{await scanner.stop();scanner=null;$('#reader').innerHTML='';accredit(t)})}
+  catch{toast('No se pudo abrir la cámara: revisá los permisos (requiere HTTPS)')}
+};
+
+/* ==============================
+DASHBOARD
+============================== */
+async function dash(){
+  loading();const g=c=>all(c).catch(()=>[]);
+  const[so,e,i,cu,ing,egr,au]=await Promise.all(['socios','eventos','inscripciones','cuotas','ingresos','egresos','auditoria'].map(g));
+  const sum=a=>a.reduce((t,x)=>t+(+x.importe||0),0),c=(n,t)=>`<div class="card"><div class="num">${n}</div>${t}</div>`;
+  const I=sum(ing),E=sum(egr),mx=Math.max(1,I,E),bar=(v,col)=>`<div style="background:${col};height:12px;width:${v/mx*100}%;border-radius:6px;margin:3px 0"></div>`;
+  const prox=e.filter(x=>x.estado==='PUBLICADO'&&(x.fecha||'')>=today()).sort((x,y)=>x.fecha.localeCompare(y.fecha)).slice(0,4);
+  const rec=au.sort((x,y)=>(y.fecha?.seconds||0)-(x.fecha?.seconds||0)).slice(0,6);
+  main(`<h2>Panel</h2><div class="grid">${c(so.filter(x=>x.estado==='ACTIVO').length,'Socios activos')}${c(cu.filter(x=>x.estado!=='PAGADA').length,'Cuotas pendientes')}${c(i.filter(x=>x.estado!=='CANCELADO').length,'Participantes')}${c(i.filter(x=>x.acreditado).length,'Acreditados')}${c(money(I),'Ingresos')}${c(money(E),'Egresos')}${c(money(I-E),'Saldo')}</div><div class="card"><b>Ingresos vs egresos</b>${bar(I,'#2e7d32')}${bar(E,'#7a1426')}</div><div class="card"><b>Próximos eventos</b><br>${prox.map(x=>`${esc(x.fecha)} — ${esc(x.nombre)}`).join('<br>')||'<span class="empty">Sin eventos próximos</span>'}</div><div class="card"><b>Últimas actividades</b><br>${rec.map(x=>`${esc(x.usuario)} · ${esc(x.accion)} · ${esc(x.entidad)}`).join('<br>')||'<span class="empty">Sin actividad</span>'}</div>`);
+}
+
+/* ==============================
+FOTOS (socios, vehículos, eventos) - Firebase Storage
+============================== */
+acts.fotos=async k=>{const f=await where1('fotos','ref',k);
+  modal(`<h3>Fotos</h3><div class="grid">${f.map(x=>`<a href="${esc(x.url)}" target="_blank"><img src="${esc(x.url)}" loading="lazy" style="width:100%;border-radius:8px;aspect-ratio:1;object-fit:cover"></a>`).join('')||'<div class="empty">Sin fotos</div>'}</div>${staff()?`<input id="pf" type="file" accept="image/*" multiple><button class="b" data-a="fup" data-i="${k}">Subir</button>`:''}<button class="b l" data-a="cm">Cerrar</button>`)};
+acts.fup=async k=>{const fs=[...$('#pf').files];if(!fs.length)return toast('Elegí fotos');
+  for(const f of fs){if(f.size>5*1024*1024){toast(f.name+' supera 5 MB');continue}
+    const r=ref(st,'fotos/'+k+'/'+Date.now()+'-'+f.name.replace(/[^\w.]/g,'_'));await uploadBytes(r,f);
+    await addDoc(collection(db,'fotos'),{ref:k,url:await getDownloadURL(r),createdAt:serverTimestamp()})}
+  toast('Fotos subidas');acts.fotos(k)};
+acts.cinsc=async t=>{if(!confirm('¿Cancelar esta inscripción?'))return;const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data();
+  await updateDoc(r,{estado:'CANCELADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId)};
+
+/* ==============================
+MENÚ POR ROL
+============================== */
+const navFor=()=>role==='SOCIO'?['cred','cal','gal','com']:role==='TESORERO'?['dash','cuotas','fin','socios','buscar','backup']:role==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>k!=='users'||role==='ADMIN');
+
+/* ==============================
+CAMPOS COMPLETOS Y CATEGORÍAS
+============================== */
+Object.assign(FIELDS,{
+ socios:[['numero','Nº de socio'],['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['whatsapp','WhatsApp'],['email','Email','email'],['nacimiento','Fecha de nacimiento','date'],['direccion','Dirección'],['localidad','Localidad'],['ingreso','Fecha de ingreso','date'],['categoria','Categoría'],['estado','Estado','ACTIVO,SUSPENDIDO,BAJA'],['observaciones','Observaciones']],
+ eventos:[['nombre','Nombre'],['tipo','Tipo','encuentro,exposición,caravana,rally,reunión,cena,asado,viaje,evento especial,otro'],['descripcion','Descripción'],['fecha','Fecha','date'],['hora','Hora','time'],['lugar','Lugar'],['direccion','Dirección'],['localidad','Localidad'],['coordenadas','Coordenadas (lat, lng)'],['organizador','Organizador'],['cupo','Cupo','number'],['costo','Costo','number'],['estado','Estado','BORRADOR,PUBLICADO,FINALIZADO,CANCELADO']],
+ vehiculos:[['socioNumero','Nº de socio'],['marca','Marca'],['modelo','Modelo'],['version','Versión'],['anio','Año','number'],['patente','Patente'],['color','Color'],['motor','Motor'],['chasis','Chasis'],['tipo','Tipo','AUTO,PICKUP,MOTO,OTRO'],['estado','Estado','EXCELENTE,BUENO,REGULAR,EN RESTAURACIÓN'],['condicion','Original / restaurado / modificado','ORIGINAL,RESTAURADO,MODIFICADO'],['descripcion','Descripción'],['historia','Historia']],
+ cuotas:[['socio','Socio (Nº Apellido)'],['periodo','Período (AAAA-MM)'],['importe','Importe','number'],['vencimiento','Vencimiento','date'],['fechaPago','Fecha de pago','date'],['medio','Medio de pago','Efectivo,Transferencia,Mercado Pago,Tarjeta,Otro'],['comprobante','Comprobante (Nº o link)'],['estado','Estado','PENDIENTE,PAGADA,VENCIDA']],
+ ingresos:[['fecha','Fecha','date'],['categoria','Categoría','Cuotas,Eventos,Donaciones,Sponsors,Otros'],['concepto','Concepto'],['importe','Importe','number']],
+ egresos:[['fecha','Fecha','date'],['categoria','Categoría','Alquiler,Eventos,Mantenimiento,Impuestos,Insumos,Otros'],['concepto','Concepto'],['importe','Importe','number']],
+ participantes:[['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['whatsapp','WhatsApp'],['email','Email','email'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],['patente','Patente'],['observaciones','Observaciones']]});
+Object.assign(COLS,{socios:['numero','apellido','nombre','dni','localidad','estado'],participantes:['nombre','apellido','dni','patente','tipo'],eventos:['nombre','tipo','fecha','lugar','cupo','estado'],vehiculos:['socioNumero','marca','modelo','anio','patente','estado']});
+const catCard=(t,a,col)=>{const m={};a.forEach(x=>{const k=x.categoria||'Sin categoría';m[k]=(m[k]||0)+(+x.importe||0)});const mx=Math.max(1,...Object.values(m));return `<div class="card"><b>${t}</b>${Object.entries(m).map(([k,v])=>`<div style="margin-top:.5em">${esc(k)} — ${money(v)}<div style="background:${col};height:10px;width:${v/mx*100}%;border-radius:5px"></div></div>`).join('')||'<div class="empty">Sin datos</div>'}</div>`};
+
+/* ==============================
+SOCIOS - FICHA / CUOTAS EN LOTE / REPORTES
+============================== */
+acts.ficha=async id=>{const s=(await getDoc(doc(db,'socios',id))).data();
+  const[v,cu,ins]=await Promise.all([where1('vehiculos','socioNumero',String(s.numero)),all('cuotas').catch(()=>[]),where1('inscripciones','participanteId',id).catch(()=>[])]);
+  const pend=cu.filter(x=>String(x.socio).startsWith(s.numero+' ')&&x.estado!=='PAGADA');
+  modal(`<h3>Socio Nº ${esc(s.numero)} ${badge(s.estado)}</h3>${FIELDS.socios.filter(f=>!['numero','estado'].includes(f[0])&&s[f[0]]).map(f=>`<div><small>${f[1]}</small><br>${esc(s[f[0]])}</div>`).join('')}<hr><b>Vehículos</b><br>${v.map(x=>esc([x.marca,x.modelo,x.anio,x.patente].filter(Boolean).join(' '))).join('<br>')||'—'}<hr><b>Cuotas pendientes:</b> ${pend.length}<br><b>Eventos:</b> ${ins.filter(x=>x.estado!=='CANCELADO').map(x=>esc(x.eventoNombre)).join(', ')||'—'}<br><button class="b l big" data-a="cm" style="margin-top:.7em">Cerrar</button>`)};
+acts.gen=()=>modal(`<h3>Generar cuotas</h3>${fld(['periodo','Período (AAAA-MM)'],today().slice(0,7))}${fld(['importe','Importe','number'],'')}${fld(['vencimiento','Vencimiento','date'],'')}<p><small>Crea una cuota PENDIENTE por cada socio ACTIVO que aún no la tenga.</small></p><button class="b" data-a="gens">Generar</button><button class="b l" data-a="cm">Cancelar</button>`);
+acts.gens=async()=>{const d=formData();if(!d.periodo||!+d.importe||!d.vencimiento)return toast('Completá período, importe y vencimiento');
+  const[so,cu]=await Promise.all([all('socios'),all('cuotas')]);let n=0;
+  for(const s of so.filter(x=>x.estado==='ACTIVO')){const k=s.numero+' '+s.apellido;if(cu.some(x=>x.socio===k&&x.periodo===d.periodo))continue;
+    await addDoc(collection(db,'cuotas'),{socio:k,periodo:d.periodo,importe:+d.importe,vencimiento:d.vencimiento,estado:'PENDIENTE',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});n++}
+  log('alta','cuotas','lote '+d.periodo);closeM();toast(n+' cuotas generadas');go('cuotas')};
+acts.csv=c=>csvOut(c);
+acts.csvf=k=>k==='deuda'?csvOut('cuotas',x=>x.estado!=='PAGADA','deuda'):k==='pagos'?csvOut('cuotas',x=>x.estado==='PAGADA','pagos'):csvOut('socios',x=>x.estado!=='ACTIVO','socios-inactivos');
+acts.conf=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data();await updateDoc(r,{estado:'CONFIRMADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId)};
+
+/* ==============================
+USUARIOS Y ROLES (solo ADMIN)
+============================== */
+const ROLES='SOCIO,ORGANIZADOR,TESORERO,COMISION,ADMIN';
+async function usersView(){loading();const u=await all('users');
+  main(`<h2>Usuarios y roles</h2><button class="b" data-a="nu">+ Nuevo usuario</button><div class="card wrap"><table>${u.map(x=>`<tr><td>${esc(x.email)}</td><td>${badge(x.role)}</td><td><button class="b l" data-a="ur" data-i="${x.id}">Cambiar rol</button></td></tr>`).join('')}</table>${u.length?'':'<div class="empty">Sin usuarios</div>'}</div><p><small>Para que un SOCIO vea su credencial, su ficha de socio debe tener el mismo email.</small></p>`)}
+acts.nu=()=>modal(`<h3>Nuevo usuario</h3>${fld(['email','Email','email'],'')}${fld(['password','Contraseña (mín. 6)','password'],'')}${fld(['role','Rol',ROLES],'SOCIO')}<button class="b" data-a="nus">Crear</button><button class="b l" data-a="cm">Cancelar</button>`);
+acts.nus=async()=>{const d=formData();if(!d.email||d.password.length<6)return toast('Email y contraseña (mín. 6)');
+  let c;try{c=await createUserWithEmailAndPassword(auth2,d.email,d.password)}catch(x){return toast('No se pudo crear: '+(x.code||x.message))}
+  await setDoc(doc(db,'users',c.user.uid),{email:d.email,role:d.role,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});await signOut(auth2);log('alta','users',c.user.uid);closeM();toast('Usuario creado');go('users')};
+acts.ur=id=>modal(`<h3>Cambiar rol</h3>${fld(['role','Rol',ROLES],'SOCIO')}<button class="b" data-a="urs" data-i="${id}">Guardar</button><button class="b l" data-a="cm">Cancelar</button>`);
+acts.urs=async id=>{await updateDoc(doc(db,'users',id),{role:formData().role,updatedAt:serverTimestamp()});log('cambio de estado','users',id);closeM();toast('Rol actualizado');go('users')};
+VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];
+
+/* ==============================
+ROUTER + VISTA PÚBLICA
+============================== */
+/* ==============================
+FINANZAS
+============================== */
+const today=()=>new Date().toISOString().slice(0,10);
+const money=n=>'$ '+(+n||0).toLocaleString('es-AR');
+acts.pay=async id=>{const r=(await getDoc(doc(db,'cuotas',id))).data();if(r.estado==='PAGADA')return toast('Ya está pagada');
+  await updateDoc(doc(db,'cuotas',id),{estado:'PAGADA',fechaPago:today(),updatedAt:serverTimestamp()});
+  await addDoc(collection(db,'ingresos'),{fecha:today(),categoria:'Cuotas',concepto:'Cuota '+r.periodo+' '+r.socio,importe:+r.importe||0,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  await addDoc(collection(db,'pagos'),{cuotaId:id,socio:r.socio,importe:+r.importe||0,fecha:today(),medio:r.medio||'',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});log('pago','cuotas',id);toast('Cuota cobrada e ingreso registrado');go('cuotas')};
+async function finView(){
+  loading();const[i,e]=await Promise.all([all('ingresos'),all('egresos')]),mes={};
+  const sum=a=>a.reduce((s,x)=>s+(+x.importe||0),0);
+  i.forEach(x=>{const k=(x.fecha||'s/f').slice(0,7);(mes[k]??={i:0,e:0}).i+=+x.importe||0});
+  e.forEach(x=>{const k=(x.fecha||'s/f').slice(0,7);(mes[k]??={i:0,e:0}).e+=+x.importe||0});
+  const mx=Math.max(1,...Object.values(mes).flatMap(v=>[v.i,v.e])),bar=(v,c)=>`<div style="background:${c};height:10px;width:${v/mx*100}%;border-radius:5px;margin:2px 0"></div>`;
+  main(`<h2>Finanzas</h2><div class="grid"><div class="card"><div class="num">${money(sum(i))}</div>Ingresos</div><div class="card"><div class="num">${money(sum(e))}</div>Egresos</div><div class="card"><div class="num">${money(sum(i)-sum(e))}</div>Saldo</div></div><div class="card"><b>Por mes</b> <small>(verde ingresos · bordó egresos)</small>${Object.keys(mes).sort().map(k=>`<div style="margin-top:.6em">${k} — ${money(mes[k].i)} / ${money(mes[k].e)}${bar(mes[k].i,'#2e7d32')}${bar(mes[k].e,'#7a1426')}</div>`).join('')||'<div class="empty">Sin movimientos</div>'}</div>${catCard('Ingresos por categoría',i,'#2e7d32')}${catCard('Egresos por categoría',e,'#7a1426')}<button class="b" data-a="nav" data-i="ingresos">Ingresos</button><button class="b" data-a="nav" data-i="egresos">Egresos</button>`);
+}
+
+/* ==============================
+BUSCADOR GLOBAL
+============================== */
+async function buscar(){
+  main('<h2>Buscador</h2><input id="gq" placeholder="Socio, DNI, nº, patente, vehículo, evento, participante…"><div id="gr"></div>');
+  const cs=['socios','participantes','vehiculos','eventos','inscripciones'],flat=(await Promise.all(cs.map(all))).flatMap((a,k)=>a.map(x=>({c:cs[k],x})));
+  $('#gq').oninput=e=>{const q=e.target.value.toLowerCase();$('#gr').innerHTML=q.length<2?'':flat.filter(o=>Object.values(o.x).filter(v=>typeof v==='string'||typeof v==='number').join(' ').toLowerCase().includes(q)).slice(0,30).map(o=>`<div class="card"><small>${o.c}</small><br><b>${esc(o.x.nombre||o.x.marca||o.x.patente)}</b> ${esc(o.x.apellido||o.x.modelo||'')} · ${esc(o.x.dni||o.x.patente||o.x.fecha||o.x.vehiculo||'')}</div>`).join('')||'<div class="empty">Sin resultados</div>'};
+}
+
+/* ==============================
+BACKUP, REPORTES Y AUDITORÍA
+============================== */
+const COLLS=['socios','vehiculos','eventos','participantes','inscripciones','cuotas','ingresos','egresos','acreditaciones'];
+const plain=o=>JSON.parse(JSON.stringify(o,(k,v)=>v&&typeof v==='object'&&v.seconds!==undefined&&v.nanoseconds!==undefined?new Date(v.seconds*1000).toISOString():v));
+const dlf=(n,t,ty)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()};
+acts.exp=async()=>{const o={version:1,fecha:new Date().toISOString()};for(const c of COLLS)o[c]=await all(c);dlf('acp-backup.json',JSON.stringify(plain(o)),'application/json');toast('Backup exportado')};
+const csvOut=async(c,f,n)=>{const r=plain((await all(c)).filter(f||(()=>true))),k=[...new Set(r.flatMap(Object.keys))];dlf((n||c)+'.csv','\ufeff'+[k.join(';'),...r.map(x=>k.map(h=>'"'+String(x[h]??'').replace(/"/g,'""')+'"').join(';'))].join('\n'),'text/csv')};
+acts.imp=()=>{const f=document.createElement('input');f.type='file';f.accept='.json';
+  f.onchange=async()=>{let o;try{o=JSON.parse(await f.files[0].text());if(o.version!==1)throw 0}catch{return toast('Archivo inválido')}
+    const n=COLLS.filter(c=>Array.isArray(o[c]));if(!n.length)return toast('El archivo no contiene datos');window._imp=o;
+    modal(`<h3>Importar datos</h3>${n.map(c=>`${c}: <b>${o[c].length}</b>`).join('<br>')}<p>Se combinan con los datos actuales; no se borra nada.</p><button class="b" data-a="impok">Confirmar importación</button><button class="b l" data-a="cm">Cancelar</button>`)};f.click()};
+acts.impok=async()=>{let n=0;for(const c of COLLS)for(const x of window._imp[c]||[]){const{id,...d}=x;if(typeof id!=='string'||!id)continue;await setDoc(doc(db,c,id),d,{merge:true});n++}closeM();log('importacion','backup','-');toast(n+' registros importados')};
+async function backupView(){main(`<h2>Backup y reportes</h2><div class="card"><button class="b" data-a="exp">EXPORTAR DATOS</button>${role==='ADMIN'?'<button class="b l" data-a="imp">IMPORTAR DATOS</button></div><div class="card"><b>Modo demostración</b><br><button class="b l" data-a="demo">Cargar datos demo</button><button class="b g" data-a="demoDel">Eliminar datos demo</button>':''}</div><div class="card"><b>Reportes CSV</b><br>${['socios','participantes','cuotas','ingresos','egresos','eventos','inscripciones','acreditaciones'].map(c=>`<button class="b l" data-a="csv" data-i="${c}">${c}</button>`).join('')}<button class="b l" data-a="csvf" data-i="deuda">deuda</button><button class="b l" data-a="csvf" data-i="pagos">pagos</button><button class="b l" data-a="csvf" data-i="inactivos">socios inactivos</button></div>`)}
+async function audView(){loading();const a=(await all('auditoria')).sort((x,y)=>(y.fecha?.seconds||0)-(x.fecha?.seconds||0)).slice(0,60);
+  main(`<h2>Auditoría</h2><div class="card wrap"><table>${a.map(x=>`<tr><td>${x.fecha?.toDate?x.fecha.toDate().toLocaleString('es-AR'):''}</td><td>${esc(x.usuario)}</td><td>${esc(x.accion)}</td><td>${esc(x.entidad)}</td></tr>`).join('')}</table>${a.length?'':'<div class="empty">Sin registros</div>'}</div>`)}
+
+/* ==============================
+COMUNICADOS
+============================== */
+Object.assign(FIELDS,{comunicados:[['titulo','Título'],['mensaje','Mensaje'],['imagen','Imagen (URL, opcional)'],['fecha','Fecha','date'],['estado','Estado','BORRADOR,PUBLICADO']],agenda:[['fecha','Fecha','date'],['titulo','Título'],['tipo','Tipo','REUNION,ACTIVIDAD,IMPORTANTE']]});
+Object.assign(COLS,{comunicados:['titulo','fecha','estado'],agenda:['fecha','titulo','tipo']});
+acts.cwa=async id=>{const c=(await getDoc(doc(db,'comunicados',id))).data();window.open('https://wa.me/?text='+encodeURIComponent('*'+c.titulo+'*\n\n'+c.mensaje+'\n\n— Autos Clásicos Pilar'),'_blank')};
+
+/* ==============================
+CALENDARIO
+============================== */
+let calM=new Date();calM.setDate(1);
+async function calView(){
+  loading();const[e,a,c]=await Promise.all([all('eventos'),all('agenda'),all('cuotas').catch(()=>[])]);
+  const it=[...e.map(x=>({f:x.fecha,t:'🚗 '+x.nombre})),...a.map(x=>({f:x.fecha,t:'📌 '+x.titulo+' ('+x.tipo+')'})),...c.filter(x=>x.estado!=='PAGADA').map(x=>({f:x.vencimiento,t:'💲 Vence cuota '+x.socio}))].filter(x=>x.f);
+  const y=calM.getFullYear(),m=calM.getMonth(),key=y+'-'+String(m+1).padStart(2,'0'),mine=it.filter(x=>x.f.startsWith(key)).sort((p,q)=>p.f.localeCompare(q.f));
+  const first=(new Date(y,m,1).getDay()+6)%7,days=new Date(y,m+1,0).getDate();let cells='';
+  for(let i=0;i<first;i++)cells+='<div></div>';
+  for(let d=1;d<=days;d++){const k=key+'-'+String(d).padStart(2,'0');cells+=`<div style="padding:.5em 0;border-radius:8px;${it.some(x=>x.f===k)?'background:var(--bordo);color:#fff':''}">${d}</div>`}
+  main(`<h2>Calendario</h2><button class="b l" data-a="cal" data-i="-1">←</button><b>${calM.toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</b><button class="b l" data-a="cal" data-i="1">→</button>${staff()?'<button class="b" data-a="new" data-i="agenda">+ Actividad</button>':''}<div class="card" style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;gap:3px">${'LMMJVSD'.split('').map(x=>`<b>${x}</b>`).join('')}${cells}</div><div class="card">${mine.map(x=>`<div>${x.f.slice(8)} — ${esc(x.t)}</div>`).join('')||'<div class="empty">Sin fechas este mes</div>'}</div>`);
+}
+acts.cal=d=>{calM.setMonth(calM.getMonth()+ +d);calView()};
+
+/* ==============================
+CREDENCIAL DIGITAL
+============================== */
+async function credView(){
+  loading();const ss=role==='SOCIO'?await where1('socios','email',me.email):await all('socios'),vs=await all('vehiculos'),mine=ss.filter(s=>s.email&&me.email&&s.email.toLowerCase()===me.email.toLowerCase());
+  main(`<h2>Credencial digital</h2>${role!=='SOCIO'?`<select id="cs">${ss.map(s=>`<option value="${s.id}">${esc(s.numero)} · ${esc(s.apellido)}</option>`).join('')}</select>`:''}<div id="cc"></div>`);
+  const draw=async()=>{const s=role==='SOCIO'?mine[0]:ss.find(x=>x.id===$('#cs').value);
+    if(!s){$('#cc').innerHTML='<div class="empty">No hay una ficha de socio asociada a tu email</div>';return}
+    const v=vs.find(x=>String(x.socioNumero)===String(s.numero));
+    $('#cc').innerHTML=`<div class="tk" style="background:var(--negro);color:var(--crema);max-width:340px;margin:auto"><div>AUTOS CLÁSICOS PILAR</div><h3 style="color:var(--metal)">SOCIO Nº ${esc(s.numero)}</h3><b>${esc(s.nombre)} ${esc(s.apellido)}</b><br>${badge(s.estado)}<br>${esc(v?v.marca+' '+v.modelo+' '+(v.anio||''):'')}<div id="cqr" style="margin:.8em;background:#fff;display:inline-block;padding:6px"></div></div>`;
+    await qrCanvas($('#cqr'),s.id)};
+  if($('#cs'))$('#cs').onchange=draw;draw();
+}
+
+/* ==============================
+GALERÍA (Firebase Storage)
+============================== */
+async function galView(){
+  loading();const evs=await all('eventos');
+  main(`<h2>Galería</h2><select id="ge">${evs.map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join('')||'<option value="">Sin eventos</option>'}</select>${staff()?'<input id="gf" type="file" accept="image/*" multiple><button class="b" data-a="up">Subir fotos</button>':''}<div id="gg" class="grid"></div>`);
+  $('#ge').onchange=gal;gal();
+}
+async function gal(){const ev=$('#ge').value;if(!ev)return;const f=await where1('galeria','eventoId',ev);$('#gg').innerHTML=f.map(x=>`<a href="${esc(x.url)}" target="_blank"><img src="${esc(x.url)}" loading="lazy" style="width:100%;border-radius:8px;aspect-ratio:1;object-fit:cover"></a>`).join('')||'<div class="empty">Sin fotos</div>'}
+acts.up=async()=>{const ev=$('#ge').value,fs=[...$('#gf').files];if(!ev||!fs.length)return toast('Elegí evento y fotos');
+  for(const f of fs){if(f.size>5*1024*1024){toast(f.name+' supera 5 MB');continue}
+    const r=ref(st,'galeria/'+ev+'/'+Date.now()+'-'+f.name.replace(/[^\w.]/g,'_'));await uploadBytes(r,f);
+    await addDoc(collection(db,'galeria'),{eventoId:ev,url:await getDownloadURL(r),createdAt:serverTimestamp()})}
+  toast('Fotos subidas');gal()};
+
+/* ==============================
+DEMO (fácil de eliminar: todo lleva demo:true)
+============================== */
+const DEMOC=['socios','vehiculos','eventos','participantes','inscripciones','cuotas','acreditaciones'];
+acts.demo=async()=>{if(!confirm('¿Cargar datos de demostración?'))return;toast('Cargando…');
+  const ts=()=>({demo:true,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  const N=[['Juan','Pérez','20111222'],['Carlos','Gómez','21333444'],['Roberto','López','22555666'],['Marta','Díaz','23777888'],['Luis','Sosa','24999000']];
+  const V=['Ford Falcon 1972','Chevrolet Chevy 1975','Fiat 1500 1970','Peugeot 404 1968','Renault 12 1980'],socs=[];
+  for(let i=0;i<5;i++){const[n,ap,d]=N[i],[ma,...r]=V[i].split(' '),an=r.pop();
+    const sd=await addDoc(collection(db,'socios'),{numero:String(101+i),nombre:n,apellido:ap,dni:d,email:n.toLowerCase()+'@demo.test',categoria:'Titular',estado:i==4?'SUSPENDIDO':'ACTIVO',...ts()});socs.push({id:sd.id,nombre:n+' '+ap,v:V[i]});
+    await addDoc(collection(db,'vehiculos'),{socioNumero:String(101+i),marca:ma,modelo:r.join(' '),anio:+an,patente:'DEM'+(100+i),tipo:'AUTO',condicion:'RESTAURADO',...ts()});
+    await addDoc(collection(db,'cuotas'),{socio:(101+i)+' '+ap,periodo:'2026-10',importe:15000,vencimiento:'2026-10-15',estado:i<2?'PAGADA':'PENDIENTE',...ts()})}
+  const evs=[];for(const[n,f]of[['Encuentro de Autos Clásicos','2026-11-08'],['Caravana de Primavera','2026-12-06']]){const e=await addDoc(collection(db,'eventos'),{nombre:n,fecha:f,hora:'10:00',lugar:'Plaza de Pilar',cupo:180,estado:'PUBLICADO',...ts()});evs.push({id:e.id,nombre:n})}
+  const parts=socs.map(x=>({pid:x.id,t:'SOCIO',n:x.nombre,v:x.v}));
+  for(const[n,ap,v]of[['Pedro','Ruiz','VW Escarabajo 1966'],['Ana','Vega','Dodge GTX 1971']]){const p=await addDoc(collection(db,'participantes'),{nombre:n,apellido:ap,tipo:'INVITADO',...ts()});parts.push({pid:p.id,t:'INVITADO',n:n+' '+ap,v})}
+  let k=0;for(const p of parts){const tk=genToken(),ac=k++<3;
+    await setDoc(doc(db,'inscripciones',tk),{eventoId:evs[0].id,eventoNombre:evs[0].nombre,participanteId:p.pid,tipoParticipante:p.t,nombre:p.n,vehiculo:p.v,fechaInscripcion:serverTimestamp(),estado:ac?'ACREDITADO':'CONFIRMADO',tokenQR:tk,acreditado:ac,...(ac?{fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email}:{}),...ts()});
+    if(ac)await addDoc(collection(db,'acreditaciones'),{inscripcionId:tk,eventoId:evs[0].id,nombre:p.n,usuario:me.email,...ts()})}
+  toast('Datos demo cargados');go('dash')};
+acts.demoDel=async()=>{if(!confirm('¿Eliminar TODOS los datos de demostración?'))return;for(const c of DEMOC)for(const x of await where1(c,'demo',true))await deleteDoc(doc(db,c,x.id));toast('Demo eliminada')};
+
+/* ==============================
+PWA (manifest generado desde este mismo archivo)
+============================== */
+const ico="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#7a1426"/><text x="256" y="330" font-size="220" text-anchor="middle" fill="#f6f0e4" font-family="Georgia">ACP</text></svg>');
+const man={name:'Autos Clásicos Pilar',short_name:'ACP',start_url:location.origin+location.pathname,scope:location.origin+location.pathname.replace(/[^/]*$/,''),display:'standalone',background_color:'#f6f0e4',theme_color:'#7a1426',icons:[{src:ico,sizes:'512x512',type:'image/svg+xml',purpose:'any'}]};
+{const l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(new Blob([JSON.stringify(man)],{type:'application/manifest+json'}));document.head.append(l)}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
+VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
+VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
+const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','cal','com','gal','cred','buscar','backup','aud','users'];
+VIEWS.com=VIEWS.comunicados;
+const go=k=>{if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
+acts.nav=go;
+async function pubView(t){
+  $('#pub').classList.remove('hide');$('#pub').innerHTML='<div class="loader">Cargando…</div>';
+  try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;$('#pub').innerHTML=ticketHtml({id:t,...s.data()});await qrCanvas($('#qr'),t)}
+  catch{$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div>'}
+}
+function route(){
+  $('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
+  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML=navFor().map(k=>`<button data-a="nav" data-i="${k}">${VIEWS[k][0]}</button>`).join('');go(navFor()[0])}
+}
+const m=location.hash.match(/^#acreditacion=(.+)$/);
+Promise.all([splashDone,m?Promise.resolve():authReady]).then(()=>{
+  $('#splash').style.opacity=0;setTimeout(()=>$('#splash').remove(),600);
+  if(m)pubView(decodeURIComponent(m[1]));else{started=true;route()}
+});
+</script>
+</body>
+</html>
