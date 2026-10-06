@@ -67,6 +67,10 @@ td:last-child{white-space:nowrap}
 @media(min-width:900px){#app{display:grid;grid-template-columns:230px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
 header{grid-column:1/3}nav{flex-direction:column;overflow:visible;padding:1em;position:sticky;top:58px;align-self:start;height:calc(100vh - 58px);border-right:1px solid var(--bd)}
 nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-width:1150px;width:100%;margin:0;padding:1.5em 2em}}
+#scan{position:fixed;inset:0;background:#000;z-index:80;display:flex;flex-direction:column}
+#scan #reader{flex:1;min-height:0;overflow:hidden}#scan #reader>div,#scan #reader video{width:100%!important;height:100%!important;object-fit:cover}
+.scanbar{position:absolute;left:0;right:0;bottom:0;padding:1em 1em calc(1em + env(safe-area-inset-bottom));background:linear-gradient(transparent,#000c);color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;gap:.3em}
+.scanbar b{font-size:1.2rem}
 #net{position:fixed;bottom:0;left:0;right:0;background:#b45309;color:#fff;text-align:center;padding:.5em;font-size:.85rem;z-index:60}
 @media print{.tk{background:#fff!important;color:#000!important;border-color:#000!important}.tk h3{color:#000!important}header,nav,main,#login,.b{display:none!important}#modal{position:static;background:none}}
 </style>
@@ -94,6 +98,7 @@ nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-w
   <nav id="nav"></nav>
   <main id="main"></main>
 </div>
+<div id="scan" class="hide"><div id="reader"></div><div class="scanbar"><small>Acreditando en</small><b id="scev"></b><button class="b g" data-a="scanx">✕ Cancelar</button></div></div>
 <div id="net" class="hide">📴 Sin conexión — los cambios se guardan y se sincronizan al volver internet</div>
 <div id="modal" class="hide"><div id="mbody"></div></div>
 
@@ -222,7 +227,7 @@ PARTICIPANTES + INSCRIPCIONES
 ============================== */
 acts.ev=async id=>{
   loading();const e=(await getDoc(doc(db,'eventos',id))).data(),ins=await where1('inscripciones','eventoId',id);
-  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Inscriptos ${ins.filter(i=>i.estado!=='CANCELADO').length}/${esc(e.cupo||'∞')}</p>${staff()?`<button class="b" data-a="addp" data-i="${id}">+ Agregar participante</button>`:''}<div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo)}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td><button class="b" data-a="tk" data-i="${i.id}">QR</button>${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?`<button class="b g" data-a="cinsc" data-i="${i.id}">Cancelar</button>`:''}${staff()&&i.estado==='PREINSCRIPTO'?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}</td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
+  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Inscriptos ${ins.filter(i=>i.estado!=='CANCELADO').length}/${esc(e.cupo||'∞')}</p>${staff()?`<button class="b" data-a="addp" data-i="${id}">+ Agregar participante</button>${e.estado==='PUBLICADO'?`<button class="b" data-a="acev" data-i="${id}">📷 Acreditar (escanear QR)</button>`:''}`:''}<div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo)}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td><button class="b" data-a="tk" data-i="${i.id}">QR</button>${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?`<button class="b g" data-a="cinsc" data-i="${i.id}">Cancelar</button>`:''}${staff()&&i.estado==='PREINSCRIPTO'?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}</td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
 };
 acts.tk=async t=>showTicket({id:t,...(await getDoc(doc(db,'inscripciones',t))).data()});
 acts.addp=ev=>modal(`<h3>¿Es socio del club?</h3><button class="b big" data-a="psoc" data-i="${ev}">SÍ, ES SOCIO</button><button class="b l big" data-a="pinv" data-i="${ev}">NO, ES INVITADO</button>`);
@@ -267,17 +272,23 @@ async function accredit(token){
 }
 async function evStats(){const ev=$('#evsel').value;if(!ev)return;const ins=await where1('inscripciones','eventoId',ev);const a=ins.filter(i=>i.acreditado).sort((x,y)=>(y.fechaAcreditacion?.seconds||0)-(x.fechaAcreditacion?.seconds||0));
   $('#stats').innerHTML=`<div class="card"><div class="num">${a.length} / ${ins.filter(i=>i.estado!=='CANCELADO').length}</div>ACREDITADOS<hr>Últimas:<br>${a.slice(0,5).map(i=>esc(i.nombre)).join('<br>')||'—'}<br><button class="b l" data-a="lst" data-i="in">Ver quiénes ingresaron</button><button class="b l" data-a="lst" data-i="out">Ver quiénes faltan</button><hr><small>📥 ${ins.length} inscripciones guardadas para uso sin conexión</small></div>`}
-async function acredView(modo){
+async function acredView(modo,evId){
   loading();const evs=(await all('eventos')).filter(e=>e.estado==='PUBLICADO');
-  main(`<h2>${modo?'MODO EVENTO':'ACREDITACIÓN'}</h2><select id="evsel">${evs.map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join('')||'<option value="">Sin eventos publicados</option>'}</select><button class="b big" data-a="scan"${modo?' style="position:fixed;left:1em;right:1em;bottom:calc(1em + env(safe-area-inset-bottom));width:auto;z-index:6;padding:1.4em;font-size:1.3rem"':''}>ESCANEAR QR</button><div id="reader"></div><div id="res"></div><div id="stats"></div>${modo?'<div style="height:6em"></div>':''}`);
+  main(`<h2>${modo?'MODO EVENTO':'ACREDITACIÓN'}</h2><select id="evsel">${evs.map(e=>`<option value="${e.id}"${e.id===evId?' selected':''}>${esc(e.nombre)}</option>`).join('')||'<option value="">Sin eventos publicados</option>'}</select><button class="b big" data-a="scan"${modo?' style="position:fixed;left:1em;right:1em;bottom:calc(1em + env(safe-area-inset-bottom));width:auto;z-index:6;padding:1.4em;font-size:1.3rem"':''}>ESCANEAR QR</button><div id="res"></div><div id="stats"></div>${modo?'<div style="height:6em"></div>':''}`);
   $('#evsel').onchange=evStats;evStats();
 }
+let scanBusy=false;
+const closeScan=async()=>{if(scanner){try{await scanner.stop()}catch{}try{scanner.clear()}catch{}scanner=null}$('#scan').classList.add('hide');$('#reader').innerHTML=''};
+acts.scanx=closeScan;
 acts.scan=async()=>{
-  if(scanner){try{await scanner.stop()}catch{}}
-  scanner=new Html5Qrcode('reader');$('#res').innerHTML='';
-  try{await scanner.start({facingMode:'environment'},{fps:10,qrbox:240},async t=>{await scanner.stop();scanner=null;$('#reader').innerHTML='';accredit(t)})}
-  catch{toast('No se pudo abrir la cámara: revisá los permisos (requiere HTTPS)')}
+  const sel=$('#evsel');if(!sel||!sel.value)return toast('Elegí un evento primero');
+  await closeScan();scanBusy=false;$('#res').innerHTML='';
+  $('#scev').textContent=sel.selectedOptions[0].textContent;$('#scan').classList.remove('hide');
+  scanner=new Html5Qrcode('reader');
+  try{await scanner.start({facingMode:'environment'},{fps:10,qrbox:(w,h)=>{const m=Math.floor(Math.min(w,h)*.7);return{width:m,height:m}}},async t=>{if(scanBusy)return;scanBusy=true;if(navigator.vibrate)navigator.vibrate(80);await closeScan();accredit(t)})}
+  catch{await closeScan();toast('No se pudo abrir la cámara: revisá los permisos (requiere HTTPS)')}
 };
+acts.acev=id=>{document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i==='acred'));acredView(false,id).catch(x=>main('<div class="empty">Error: '+esc(x.code||x.message)+'</div>'))};
 
 /* ==============================
 DASHBOARD
