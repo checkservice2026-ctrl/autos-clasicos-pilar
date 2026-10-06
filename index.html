@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#7a1426"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Autos Clásicos Pilar</title>
+<link rel="manifest" href="manifest.json"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-title" content="Autos Pilar">
 <style>
 :root{--ac:#7a1426;--r:14px;--bg:#f4f5f8;--sf:#fff;--tx:#14171f;--mut:#6b7280;--bd:#e5e7eb;--hd:rgba(255,255,255,.82);--inp:#fff;--sh:0 1px 2px rgba(16,24,40,.06),0 10px 28px rgba(16,24,40,.07);
 --bordo:var(--ac);--negro:var(--tx);--crema:var(--bg);--gris:var(--mut);--metal:var(--bd);--bl:var(--sf);--grad:linear-gradient(135deg,var(--ac),color-mix(in srgb,var(--ac) 70%,#fff))}
@@ -509,5 +510,6 @@ Promise.all([splashDone,m?Promise.resolve():authReady]).then(()=>{
   if(m)pubView(decodeURIComponent(m[1]));else{started=true;route()}
 });
 </script>
+<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
 </body>
 </html>
