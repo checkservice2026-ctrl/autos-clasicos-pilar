@@ -96,7 +96,7 @@ nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-w
 <div id="modal" class="hide"><div id="mbody"></div></div>
 
 <!-- LIBRERÍAS CDN: QR (generar) y lectura QR -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script type="module">
@@ -165,7 +165,9 @@ QR
 ============================== */
 const genToken=()=>{const a=new Uint8Array(16);crypto.getRandomValues(a);return 'ACP-'+new Date().getFullYear()+'-'+[...a].map(b=>b.toString(16).padStart(2,'0')).join('')};
 const linkOf=t=>location.origin+location.pathname+'#acreditacion='+t;
-const qrCanvas=async(el,t)=>{try{const c=document.createElement('canvas');await QRCode.toCanvas(c,t,{width:260,margin:4,errorCorrectionLevel:'M',color:{dark:'#000000',light:'#ffffff'}});c.style.cssText='display:block;margin:auto;max-width:100%;height:auto;border-radius:12px';el.append(c);return c}catch(e){console.error('QR',e);el.innerHTML='<div class="empty">No se pudo generar el QR.<br><small>Revisá la conexión y recargá la página.</small><br><b>'+esc(t)+'</b></div>'}};
+const loadJs=u=>new Promise((ok,no)=>{const e=document.createElement('script');e.src=u;e.onload=ok;e.onerror=no;document.head.append(e)});
+const ensureQR=async()=>{if(window.QRCode)return;for(const u of['https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js','https://unpkg.com/qrcode@1.4.4/build/qrcode.min.js']){try{await loadJs(u);if(window.QRCode)return}catch{}}};
+const qrCanvas=async(el,t)=>{try{await ensureQR();const c=document.createElement('canvas');await QRCode.toCanvas(c,t,{width:260,margin:4,errorCorrectionLevel:'M',color:{dark:'#000000',light:'#ffffff'}});c.style.cssText='display:block;margin:auto;max-width:100%;height:auto;border-radius:12px';el.append(c);return c}catch(e){console.error('QR',e);el.innerHTML='<div class="empty">No se pudo generar el QR.<br><small>Revisá la conexión y recargá la página.</small><br><b>'+esc(t)+'</b></div>'}};
 const ticketHtml=i=>`<div class="tk"><div>AUTOS CLÁSICOS PILAR</div><h3>${esc(i.eventoNombre)}</h3><b>${esc(i.nombre)}</b><br>${esc(i.vehiculo||'')}<br>${badge(i.estado)}<div id="qr" style="margin:.8em"></div><small>${esc(i.id)}</small></div>`;
 const showTicket=async i=>{
   modal(ticketHtml(i)+`<div class="grid" style="margin-top:.7em"><button class="b" data-a="dl" data-i="${i.id}">DESCARGAR QR</button><button class="b l" data-a="cp" data-i="${i.id}">COPIAR ENLACE</button><button class="b" data-a="wa" data-i="${i.id}">COMPARTIR WHATSAPP</button><button class="b g" onclick="window.print()">IMPRIMIR</button></div><button class="b l big" data-a="cm">Cerrar</button>`);
