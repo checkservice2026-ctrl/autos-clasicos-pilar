@@ -25,7 +25,7 @@ button,input,select{font:inherit}h2,h3{letter-spacing:-.01em}
 .hide{display:none!important}
 header{background:var(--hd);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);color:var(--tx);padding:.7em 1em;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
 header b{letter-spacing:.1em;font-size:.95rem;display:flex;align-items:center;gap:.6em}header b:before{content:"";width:10px;height:10px;border-radius:50%;background:var(--grad)}
-header small{color:var(--mut);margin-right:.4em}
+header small{color:var(--mut);margin-right:.4em}.hlogo{height:40px;width:auto;object-fit:contain}#nextev{flex:1;text-align:center;font-size:.82rem;cursor:pointer;padding:0 .8em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#nextev small{letter-spacing:.12em;font-size:.65rem}.bell{position:relative}.dd{position:relative;display:inline-block;margin:.2em .3em .2em 0}.dd summary{list-style:none;cursor:pointer;padding:.5em 1em;border:1px solid var(--bd);border-radius:99px;background:var(--sf);color:var(--tx);font-weight:600;user-select:none}.dd summary::-webkit-details-marker{display:none}.ddm{position:absolute;z-index:30;left:0;top:calc(100% + 6px);min-width:250px;max-width:86vw;background:var(--sf);border:1px solid var(--bd);border-radius:16px;box-shadow:0 14px 34px rgba(0,0,0,.22);padding:.4em;display:flex;flex-direction:column}.ddm button{width:100%;text-align:left;white-space:normal;border:0;background:transparent;box-shadow:none;border-radius:10px;padding:.65em .8em;min-height:0}.ddm button:hover{background:var(--bd)}.ddm .sec{font-size:.66rem;letter-spacing:.12em;color:var(--mut);padding:.6em .8em .15em}.bell i{position:absolute;top:-5px;right:-5px;background:#b91c1c;color:#fff;border-radius:99px;font-size:.65rem;padding:0 5px;font-style:normal;line-height:1.4}@media(max-width:600px){#nextev small{display:none}#nextev{font-size:.7rem}.hlogo{height:30px}}
 nav{display:flex;gap:.4em;overflow-x:auto;padding:.6em .7em;scrollbar-width:none}
 nav button{white-space:nowrap;border:1px solid var(--bd);background:var(--sf);color:var(--tx);padding:.5em 1em;border-radius:99px;cursor:pointer;transition:all .15s}
 nav button:hover{border-color:var(--ac)}nav button.on{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 4px 14px color-mix(in srgb,var(--ac) 40%,transparent)}
@@ -94,7 +94,7 @@ nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-w
 </div>
 
 <div id="app" class="hide">
-  <header><b>AUTOS CLÁSICOS PILAR</b><span><small id="who"></small> <button class="gear" data-a="cfg" title="Apariencia">⚙️</button><button class="b g" data-a="logout">Salir</button></span></header>
+  <header><img class="hlogo" src="logo.png" alt="Autos Clásicos Pilar" onerror="this.outerHTML='<b>AUTOS CLÁSICOS PILAR</b>'"><div id="nextev" data-a="nxev"></div><span><small id="who"></small> <button class="gear bell" data-a="bell" title="Inscripciones pendientes">🔔<i id="bn" class="hide"></i></button><button class="gear" data-a="cfg" title="Apariencia">⚙️</button><button class="b g" data-a="logout">Salir</button></span></header>
   <nav id="nav"></nav>
   <main id="main"></main>
 </div>
@@ -204,7 +204,7 @@ Object.assign(FIELDS,{
  cuotas:[['socio','Socio (Nº o nombre)'],['periodo','Período (AAAA-MM)'],['importe','Importe','number'],['vencimiento','Vencimiento','date'],['fechaPago','Fecha de pago','date'],['medio','Medio de pago'],['estado','Estado','PENDIENTE,PAGADA,VENCIDA']],
  ingresos:[['fecha','Fecha','date'],['categoria','Categoría'],['concepto','Concepto'],['importe','Importe','number']],
  egresos:[['fecha','Fecha','date'],['categoria','Categoría'],['concepto','Concepto'],['importe','Importe','number']]});
-const COLS={socios:['numero','apellido','nombre','dni','estado'],eventos:['nombre','fecha','lugar','cupo','estado'],vehiculos:['socioNumero','marca','modelo','anio','patente','tipo'],cuotas:['socio','periodo','importe','vencimiento','estado'],ingresos:['fecha','categoria','concepto','importe'],egresos:['fecha','categoria','concepto','importe']};
+const COLS={socios:['numero','apellido','nombre','dni','estado'],eventos:['nombre','fecha','lugar','cupo','estado'],vehiculos:['socioNumero','marca','modelo','anio','patente','tipo'],cuotas:['socio','periodo','importe','vencimiento','estado'],ingresos:['fecha','categoria','concepto','medio','importe'],egresos:['fecha','categoria','concepto','proveedor','medio','importe']};
 const can=c=>['cuotas','ingresos','egresos'].includes(c)?['ADMIN','COMISION','TESORERO'].includes(role):staff();
 const fld=(f,v)=>`<label>${f[1]}</label>`+(f[2]&&f[2].includes(',')?`<select name="${f[0]}">${f[2].split(',').map(o=>`<option ${o==v?'selected':''}>${o}</option>`).join('')}</select>`:`<input name="${f[0]}" type="${f[2]||'text'}" value="${esc(v||'')}">`);
 const formData=()=>Object.fromEntries([...$('#mbody').querySelectorAll('[name]')].map(e=>[e.name,e.value.trim()]));
@@ -233,7 +233,7 @@ PARTICIPANTES + INSCRIPCIONES
 ============================== */
 acts.ev=async id=>{
   loading();const e=(await getDoc(doc(db,'eventos',id))).data(),ins=await where1('inscripciones','eventoId',id);
-  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Lugares ${ins.filter(i=>['CONFIRMADO','ACREDITADO'].includes(i.estado)).length}/${esc(e.cupo||'∞')} · Pendientes ${ins.filter(i=>i.estado==='PREINSCRIPTO').length} · En espera ${ins.filter(i=>i.estado==='ESPERA').length}</p><button class="b l" data-a="stats" data-i="${id}">📊 Estadísticas</button><button class="b l" data-a="exlist" data-i="${id}">📄 Exportar lista</button><button class="b l" data-a="mapa" data-i="${id}">${ll(e)?'📍 Mapa / compartir':(staff()?'📍 Marcar ubicación':'')}</button>${staff()?`<button class="b l" data-a="live" data-i="${id}">📡 Seguimiento en vivo</button>`:''}${staff()?`<button class="b" data-a="addp" data-i="${id}">+ Agregar participante</button>${e.estado==='PUBLICADO'?`<button class="b" data-a="acev" data-i="${id}">📷 Acreditar (escanear QR)</button><button class=\"b l\" data-a=\"insl\" data-i=\"${id}\">🔗 Link de inscripción</button>`:''}`:''}<div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}${i.foto?`<br><a href="${esc(i.foto)}" target="_blank"><img src="${esc(i.foto)}" style="height:56px;border-radius:8px;margin-top:4px"></a>`:''}<br><small>${esc(i.vehiculo)}${i.origen==='WEB'?` · 🌐 DNI ${esc(i.dni)} · ${esc(i.telefono)}`:''}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td><button class="b" data-a="tk" data-i="${i.id}">QR</button>${staff()?`<button class="b l" data-a="avisar" data-i="${i.id}">💬</button>`:''}${staff()&&+e.arancel&&i.estado!=='CANCELADO'?(i.pagado?'<small>💵 Pagó</small>':`<button class="b" data-a="cobi" data-i="${i.id}">💵 Cobrar</button>`):''}${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?`<button class="b g" data-a="cinsc" data-i="${i.id}">Cancelar</button>`:''}${staff()&&['PREINSCRIPTO','ESPERA'].includes(i.estado)?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}</td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
+  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Lugares ${ins.filter(i=>['CONFIRMADO','ACREDITADO'].includes(i.estado)).length}/${esc(e.cupo||'∞')} · Pendientes ${ins.filter(i=>i.estado==='PREINSCRIPTO').length} · En espera ${ins.filter(i=>i.estado==='ESPERA').length}</p>${staff()&&e.estado==='PUBLICADO'?`<button class="b" data-a="acev" data-i="${id}">📷 Acreditar (QR)</button> `:''}<details class="dd"><summary>⚙️ Acciones ▾</summary><div class="ddm">${staff()?`<div class="sec">PARTICIPANTES</div><button data-a="addp" data-i="${id}">➕ Agregar participante</button>${e.estado==='PUBLICADO'?`<button data-a="insl" data-i="${id}">🔗 Link de inscripción</button>`:''}`:''}${ll(e)||staff()?`<div class="sec">UBICACIÓN</div><button data-a="mapa" data-i="${id}">${ll(e)?'📍 Mapa / compartir':'📍 Marcar ubicación'}</button>`:''}${staff()?`<button data-a="live" data-i="${id}">📡 Seguimiento en vivo</button>`:''}<div class="sec">INFORMES</div><button data-a="stats" data-i="${id}">📊 Estadísticas</button><button data-a="exlist" data-i="${id}">📄 Exportar lista</button></div></details><div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}${i.foto?`<br><a href="${esc(i.foto)}" target="_blank"><img src="${esc(i.foto)}" style="height:56px;border-radius:8px;margin-top:4px"></a>`:''}<br><small>${esc(i.vehiculo)}${i.origen==='WEB'?` · 🌐 DNI ${esc(i.dni)} · ${esc(i.telefono)}`:''}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td>${staff()&&i.estado==='CONFIRMADO'&&!i.acreditado?`<button class="b" data-a="acr1" data-i="${i.id}">✅ Acreditar</button> `:''}${staff()&&['PREINSCRIPTO','ESPERA'].includes(i.estado)?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}${i.pagado?' <small>💵</small>':''} <button class="b l" data-a="rmenu" data-i="${i.id}">⋯ Opciones</button></td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
 };
 acts.tk=async t=>showTicket({id:t,...(await getDoc(doc(db,'inscripciones',t))).data()});
 acts.addp=ev=>modal(`<h3>¿Es socio del club?</h3><button class="b big" data-a="psoc" data-i="${ev}">SÍ, ES SOCIO</button><button class="b l big" data-a="pinv" data-i="${ev}">NO, ES INVITADO</button>`);
@@ -263,7 +263,7 @@ let scanner=null;
 const offAccredit=async ref=>{try{const s=await getDocFromCache(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};if(i.estado==='PREINSCRIPTO'||i.estado==='ESPERA')return{k:'pend',i};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};if(i.acreditado)return{k:'warn',i};updateDoc(ref,{acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,updatedAt:serverTimestamp()}).catch(()=>{});return{k:'ok',i,off:true}}catch{return{k:'nocache'}}};
 acts.lst=async k=>{const ev=$('#evsel')?.value;if(!ev)return;const ins=(await where1('inscripciones','eventoId',ev)).filter(i=>i.estado!=='CANCELADO');const hr=d=>d?.toDate?d.toDate().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):'';
  const l=k==='in'?ins.filter(i=>i.acreditado).sort((x,y)=>(x.fechaAcreditacion?.seconds||0)-(y.fechaAcreditacion?.seconds||0)):ins.filter(i=>!i.acreditado).sort((x,y)=>String(x.nombre).localeCompare(String(y.nombre)));
- modal(`<h3>${k==='in'?'Ingresaron':'Faltan ingresar'} (${l.length} de ${ins.length})</h3><div class="wrap"><table>${l.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo||'')}</small></td><td>${k==='in'?hr(i.fechaAcreditacion):badge(i.estado)}</td></tr>`).join('')||'<tr><td class="empty">Nadie por ahora</td></tr>'}</table></div><button class="b l big" data-a="cm">Cerrar</button>`)};
+ modal(`<h3>${k==='in'?'Ingresaron':'Faltan ingresar'} (${l.length} de ${ins.length})</h3><div class="wrap"><table>${l.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo||'')}</small></td><td>${k==='in'?hr(i.fechaAcreditacion):badge(i.estado)}</td>${k!=='in'&&i.estado==='CONFIRMADO'?`<td><button class="b" data-a="acr1l" data-i="${i.id}">✅ Acreditar</button></td>`:''}</tr>`).join('')||'<tr><td class="empty">Nadie por ahora</td></tr>'}</table></div><button class="b l big" data-a="cm">Cerrar</button>`)};
 async function accredit(token){
   const ref=doc(db,'inscripciones',token.trim());let out;
   try{if(!navigator.onLine)throw{code:'unavailable'};out=await Promise.race([new Promise((_,no)=>setTimeout(()=>no({code:'unavailable'}),6000)),runTransaction(db,async tx=>{const s=await tx.get(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};if(i.estado==='PREINSCRIPTO'||i.estado==='ESPERA')return{k:'pend',i};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};
@@ -326,7 +326,7 @@ acts.cinsc=async t=>{if(!confirm('¿Cancelar esta inscripción?'))return;const r
 /* ==============================
 MENÚ POR ROL
 ============================== */
-const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','club','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
+const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','gastos','ingresos','caja','club','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
 const effPerm=r=>(PERM&&PERM[r])?PERM[r]:defNav(r);
 const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');return l.length?l:['cred']};
 
@@ -338,8 +338,8 @@ Object.assign(FIELDS,{
  eventos:[['nombre','Nombre'],['tipo','Tipo','encuentro,exposición,caravana,rally,reunión,cena,asado,viaje,evento especial,otro'],['descripcion','Descripción'],['fecha','Fecha','date'],['hora','Hora','time'],['lugar','Lugar'],['direccion','Dirección'],['localidad','Localidad'],['coordenadas','Coordenadas (lat, lng)'],['organizador','Organizador'],['cupo','Cupo','number'],['costo','Costo','number'],['estado','Estado','BORRADOR,PUBLICADO,FINALIZADO,CANCELADO']],
  vehiculos:[['socioNumero','Nº de socio'],['marca','Marca'],['modelo','Modelo'],['version','Versión'],['anio','Año','number'],['patente','Patente'],['color','Color'],['motor','Motor'],['chasis','Chasis'],['tipo','Tipo','AUTO,PICKUP,MOTO,OTRO'],['estado','Estado','EXCELENTE,BUENO,REGULAR,EN RESTAURACIÓN'],['condicion','Original / restaurado / modificado','ORIGINAL,RESTAURADO,MODIFICADO'],['descripcion','Descripción'],['historia','Historia']],
  cuotas:[['socio','Socio (Nº Apellido)'],['periodo','Período (AAAA-MM)'],['importe','Importe','number'],['vencimiento','Vencimiento','date'],['fechaPago','Fecha de pago','date'],['medio','Medio de pago','Efectivo,Transferencia,Mercado Pago,Tarjeta,Otro'],['comprobante','Comprobante (Nº o link)'],['estado','Estado','PENDIENTE,PAGADA,VENCIDA']],
- ingresos:[['fecha','Fecha','date'],['categoria','Categoría','Cuotas,Eventos,Donaciones,Sponsors,Otros'],['concepto','Concepto'],['importe','Importe','number']],
- egresos:[['fecha','Fecha','date'],['categoria','Categoría','Alquiler,Eventos,Mantenimiento,Impuestos,Insumos,Otros'],['concepto','Concepto'],['importe','Importe','number']],
+ ingresos:[['fecha','Fecha','date'],['categoria','Categoría','Cuotas,Eventos,Donaciones,Sponsors,Otros'],['concepto','Concepto'],['importe','Importe','number'],['medio','Medio de pago','Efectivo,Transferencia,Mercado Pago,Tarjeta,Otro']],
+ egresos:[['fecha','Fecha','date'],['categoria','Categoría','Alquiler,Eventos,Mantenimiento,Impuestos,Insumos,Otros'],['concepto','Concepto'],['proveedor','Proveedor'],['importe','Importe','number'],['medio','Medio de pago','Efectivo,Transferencia,Mercado Pago,Tarjeta,Otro'],['comprobante','Nº comprobante']],
  participantes:[['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['whatsapp','WhatsApp'],['email','Email','email'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],['patente','Patente'],['observaciones','Observaciones']]});
 Object.assign(COLS,{socios:['numero','apellido','nombre','dni','localidad','estado'],participantes:['nombre','apellido','dni','patente','tipo'],eventos:['nombre','tipo','fecha','lugar','cupo','estado'],vehiculos:['socioNumero','marca','modelo','anio','patente','estado']});
 const catCard=(t,a,col)=>{const m={};a.forEach(x=>{const k=x.categoria||'Sin categoría';m[k]=(m[k]||0)+(+x.importe||0)});const mx=Math.max(1,...Object.values(m));return `<div class="card"><b>${t}</b>${Object.entries(m).map(([k,v])=>`<div style="margin-top:.5em">${esc(k)} — ${money(v)}<div style="background:${col};height:10px;width:${v/mx*100}%;border-radius:5px"></div></div>`).join('')||'<div class="empty">Sin datos</div>'}</div>`};
@@ -391,7 +391,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const money=n=>'$ '+(+n||0).toLocaleString('es-AR');
 acts.pay=async id=>{const r=(await getDoc(doc(db,'cuotas',id))).data();if(r.estado==='PAGADA')return toast('Ya está pagada');
   await updateDoc(doc(db,'cuotas',id),{estado:'PAGADA',fechaPago:today(),updatedAt:serverTimestamp()});
-  await addDoc(collection(db,'ingresos'),{fecha:today(),categoria:'Cuotas',concepto:'Cuota '+r.periodo+' '+r.socio,importe:+r.importe||0,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  await addDoc(collection(db,'ingresos'),{fecha:today(),categoria:'Cuotas',concepto:'Cuota '+r.periodo+' '+r.socio,importe:+r.importe||0,medio:r.medio||'Efectivo',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
   await addDoc(collection(db,'pagos'),{cuotaId:id,socio:r.socio,importe:+r.importe||0,fecha:today(),medio:r.medio||'',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});log('pago','cuotas',id);toast('Cuota cobrada e ingreso registrado');go('cuotas')};
 async function finView(){
   loading();const[i,e]=await Promise.all([all('ingresos'),all('egresos')]),mes={};
@@ -511,7 +511,7 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
-const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','club','cal','com','gal','cred','buscar','backup','aud','papelera','users','perm'];
+const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','buscar','backup','aud','papelera','users','perm'];
 VIEWS.com=VIEWS.comunicados;
 VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];VIEWS.perm=['Permisos',permView];
 const PR=['SOCIO','ORGANIZADOR','TESORERO','COMISION'];
@@ -526,10 +526,10 @@ async function pubView(t){
   try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='ESPERA')$('#qr').innerHTML='<div class="res warn">⏳ Lista de espera<br><small>El cupo está completo. Si se libera un lugar te avisamos.</small></div>';else if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t);try{const ev=(await getDoc(doc(db,'eventos',d.eventoId))).data();if(ll(ev))$('#pub').insertAdjacentHTML('beforeend',`<p style="text-align:center"><a class="b" href="${mapsUrl(ev)}" target="_blank" rel="noopener">📍 Cómo llegar al evento</a></p>`);if(ev&&ev.seguimiento&&['CONFIRMADO','ACREDITADO'].includes(d.estado))$('#pub').insertAdjacentHTML('beforeend',`<div class="card" style="text-align:center"><b>📡 Seguimiento en vivo</b><p><small>La organización te ve en el mapa mientras tengas esta pantalla abierta y compartiendo. Podés frenar cuando quieras.</small></p><button id="lvbtn" class="b big" data-a="lvgo" data-i="${t}|${d.eventoId}">📡 COMPARTIR MI UBICACIÓN</button><div id="lvst" style="margin-top:.5em"></div></div>`)}catch{}}
   catch(x){console.error('pubView',x);$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'no-existe')+'</small></p>'}
 }
-const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐'};
+const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐'};
 function route(){
-  $('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
-  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML=navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck()}
+  if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
+  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML=navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();nextEv()}
 }
 
 /* ==== APARIENCIA (tema, color, bordes) ==== */
@@ -643,10 +643,70 @@ acts.livecl=async()=>{const S=window._lv;if(!confirm('¿Desactivar el seguimient
  for(const r of await where1('ubicaciones','eventoId',S.id))await deleteDoc(doc(db,'ubicaciones',r.id));log('baja','ubicaciones','evento '+S.id);S.ren();toast('Ubicaciones borradas')};
 
 
+
+
+/* ==== PRÓXIMO EVENTO / NOTIFICACIONES ==== */
+const nextEv=async()=>{const el=$('#nextev');if(!el)return;try{const t=today(),e=(await all('eventos')).filter(x=>x.fecha&&x.fecha>=t&&!['BORRADOR','CANCELADO','FINALIZADO'].includes(x.estado)).sort((a,b)=>a.fecha.localeCompare(b.fecha))[0];
+ if(!e){el.textContent='';el.dataset.i='';return}const d=Math.round((new Date(e.fecha+'T00:00')-new Date(t+'T00:00'))/864e5);el.dataset.i=e.id;
+ el.innerHTML=`<small>PRÓXIMO EVENTO</small><br><strong>${esc(e.nombre)}</strong> · ${esc(e.fecha)}${e.hora?' '+esc(e.hora):''} · ${d===0?'¡HOY!':d===1?'mañana':'en '+d+' días'}`}catch{}};
+acts.nxev=id=>id&&acts.ev(id);
+setInterval(()=>{if(me)nextEv()},6e5);
+{const sv=acts.save;acts.save=async k=>{await sv(k);if(String(k).startsWith('eventos|'))nextEv()}}
+const beep=()=>{try{const a=new(window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.08;o.start();setTimeout(()=>{o.stop();a.close()},220)}catch{}};
+const notifWatch=()=>{if(window._nb||!['ADMIN','COMISION','TESORERO','ORGANIZADOR'].includes(role))return;let first=true;
+ window._nb=onSnapshot(query(collection(db,'inscripciones'),where('estado','==','PREINSCRIPTO')),sn=>{
+  window._pend=sn.docs.map(d=>({id:d.id,...d.data()}));const b=$('#bn');if(b){b.textContent=window._pend.length||'';b.classList.toggle('hide',!window._pend.length)}
+  if(!first)sn.docChanges().filter(c=>c.type==='added').forEach(c=>{const i=c.doc.data(),m=i.nombre+' · '+(i.eventoNombre||'');toast('🔔 Nueva inscripción: '+m);beep();try{if(Notification.permission==='granted')new Notification('🔔 Nueva inscripción',{body:m,icon:'icons/icon-192.png'})}catch{}});
+  first=false},er=>console.error('notif',er))};
+acts.bell=()=>{try{if(window.Notification&&Notification.permission==='default')Notification.requestPermission()}catch{}
+ const p=[...(window._pend||[])].sort((a,b)=>(b.fechaInscripcion?.seconds||0)-(a.fechaInscripcion?.seconds||0));
+ modal(`<h3>🔔 Inscripciones pendientes (${p.length})</h3>${p.map(i=>`<div style="padding:.5em 0;border-bottom:1px solid var(--bd)"><b>${esc(i.nombre)}</b><br><small>${esc(i.eventoNombre||'')} · ${esc(i.vehiculo||'')}</small><br><button class="b" data-a="bconf" data-i="${i.id}">✅ Confirmar</button><button class="b l" data-a="bev" data-i="${i.eventoId}">Ver evento</button></div>`).join('')||'<div class="empty">No hay inscripciones pendientes</div>'}<button class="b l" data-a="cm">Cerrar</button>`)};
+acts.bconf=async t=>{closeM();await acts.conf(t)};
+acts.bev=id=>{closeM();acts.ev(id)};
+
+
+
+/* ==== ACREDITAR CON UN CLIC (CON CONFIRMACIÓN) ==== */
+acts.acr1=async t=>{const ref=doc(db,'inscripciones',t),i=(await getDoc(ref)).data();if(!i)return;
+ if(i.acreditado)return toast('Ya está acreditado');if(i.estado==='CANCELADO')return toast('La inscripción está cancelada');if(['PREINSCRIPTO','ESPERA'].includes(i.estado))return toast('Primero confirmá la inscripción');
+ if(!confirm('¿Acreditar a '+i.nombre+(i.vehiculo?' ('+i.vehiculo+')':'')+'?'))return;
+ const up={acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,metodoAcreditacion:'MANUAL',updatedAt:serverTimestamp()};
+ try{const r=await runTransaction(db,async tx=>{const x=(await tx.get(ref)).data();if(x.acreditado)return'ya';tx.update(ref,up);return'ok'});if(r==='ya')return toast('Ya estaba acreditado')}
+ catch(e){if(!['unavailable','failed-precondition'].includes(e.code))return toast('No se pudo acreditar ('+(e.code||'error')+')');updateDoc(ref,up).catch(()=>{});toast('📴 Sin conexión: se sincroniza al volver internet')}
+ addDoc(collection(db,'acreditaciones'),{inscripcionId:t,eventoId:i.eventoId,nombre:i.nombre,usuario:me.email,metodo:'MANUAL',createdAt:serverTimestamp()}).catch(()=>{});log('acreditacion','inscripciones',t);toast('✅ '+i.nombre+' acreditado');
+ if($('#evsel'))evStats();else acts.ev(i.eventoId)};
+acts.acr1l=async t=>{await acts.acr1(t);acts.lst('out')};
+
+/* ==== MENÚS DESPLEGABLES ==== */
+acts.rmenu=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data(),e=(await getDoc(doc(db,'eventos',i.eventoId))).data()||{};
+ const B=(a,l,c='l')=>`<button class="b ${c} big" data-a="rm" data-i="${t}|${a}">${l}</button>`;
+ modal(`<h3>${esc(i.nombre)}</h3><p><small>${esc(i.vehiculo||'')} · ${esc(i.estado)}</small></p>${B('tk','🎫 Ver QR')}${staff()&&i.estado==='CONFIRMADO'&&!i.acreditado?B('acr1','✅ Acreditar',''):''}${staff()?B('avisar','💬 Avisar por WhatsApp'):''}${staff()&&+e.arancel&&i.estado!=='CANCELADO'&&!i.pagado?B('cobi','💵 Cobrar '+money(e.arancel),''):''}${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?B('cinsc','🚫 Cancelar inscripción','g'):''}<button class="b l" data-a="cm">Cerrar</button>`)};
+acts.rm=k=>{const[t,a]=k.split('|');if(a!=='tk'&&a!=='avisar')closeM();acts[a](t)};
+document.addEventListener('click',e=>{document.querySelectorAll('details.dd[open]').forEach(d=>{if(!d.contains(e.target)||e.target.closest('.ddm button'))d.open=false})});
+
+/* ==== GASTOS / INGRESOS / CAJA ==== */
+VIEWS.gastos=['Gastos',()=>listView('egresos','Gastos')];
+VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];
+VIEWS.caja=['Caja',()=>cajaView()];
+async function cajaView(d){loading();d=d||today();
+ const[ing,egr,cj]=await Promise.all([all('ingresos'),all('egresos'),all('caja').catch(()=>[])]),M=x=>x.medio||'Efectivo',sm=a=>a.reduce((t,x)=>t+(+x.importe||0),0);
+ const di=ing.filter(x=>x.fecha===d),de=egr.filter(x=>x.fecha===d),prev=cj.filter(x=>x.fecha<d).sort((a,b)=>b.fecha.localeCompare(a.fecha))[0],ini=+(prev?.contado||0),cur=cj.find(x=>x.fecha===d);
+ const ie=sm(di.filter(x=>M(x)==='Efectivo')),ee=sm(de.filter(x=>M(x)==='Efectivo')),esp=ini+ie-ee,meds=[...new Set([...di,...de].map(M))].filter(m=>m!=='Efectivo');
+ window._cj={esp};
+ main(`<h2>🗄️ Caja</h2><div style="display:flex;gap:.5em;flex-wrap:wrap;align-items:center"><input type="date" id="cd" value="${d}" style="max-width:190px"><button class="b" data-a="new" data-i="ingresos">+ Ingreso</button><button class="b g" data-a="new" data-i="egresos">+ Gasto</button></div>
+ <div style="display:flex;flex-wrap:wrap;margin:.4em -.3em 0">${statBox(money(ini),'Saldo inicial'+(prev?'<br>(cierre '+esc(prev.fecha)+')':''))}${statBox(money(ie),'Ingresos efectivo')}${statBox(money(ee),'Gastos efectivo')}${statBox(money(esp),'Esperado en caja')}</div>
+ ${meds.length?`<div class="card"><b>Otros medios del día</b>${meds.map(m=>`<div style="display:flex;justify-content:space-between"><span>${esc(m)}</span><b>${money(sm(di.filter(x=>M(x)===m))-sm(de.filter(x=>M(x)===m)))}</b></div>`).join('')}</div>`:''}
+ <div class="card">${cur?`<b>🔒 Caja cerrada</b><br>Contado ${money(cur.contado)} · esperado ${money(cur.esperado)} · diferencia <b style="color:${cur.diferencia?'#b91c1c':'#2e7d32'}">${money(cur.diferencia)}</b><br><small>${esc(cur.cerradoPor||'')} ${esc(cur.obs||'')}</small><br><button class="b l" data-a="cajareab" data-i="${d}">Reabrir</button>`:`<b>Cerrar caja del día</b><input id="cc" type="number" step="0.01" placeholder="Efectivo contado"><input id="co" placeholder="Observaciones (opcional)"><button class="b" data-a="cajacierre" data-i="${d}">🔒 Cerrar caja</button>`}</div>
+ <div class="card wrap"><b>Movimientos del día</b><table><tr><th></th><th>Concepto</th><th>Medio</th><th>Importe</th></tr>${[...di.map(x=>({x,s:1})),...de.map(x=>({x,s:-1}))].map(({x,s})=>`<tr><td>${s>0?'⬆️':'⬇️'}</td><td>${esc(x.concepto||x.categoria||'')}</td><td>${esc(M(x))}</td><td>${s>0?'':'-'}${money(x.importe)}</td></tr>`).join('')||'<tr><td colspan="4"><div class="empty">Sin movimientos</div></td></tr>'}</table></div>`);
+ $('#cd').onchange=e=>cajaView(e.target.value)}
+acts.cajacierre=async d=>{const v=$('#cc').value;if(v==='')return toast('Ingresá el efectivo contado');const c=+v,e=window._cj.esp;
+ await setDoc(doc(db,'caja',d),{fecha:d,contado:c,esperado:e,diferencia:Math.round((c-e)*100)/100,obs:$('#co').value.trim(),cerradoPor:me.email,createdAt:serverTimestamp()});log('cierre','caja',d);toast('Caja cerrada');cajaView(d)};
+acts.cajareab=async d=>{if(!confirm('¿Reabrir la caja de '+d+'?'))return;await deleteDoc(doc(db,'caja',d));log('reapertura','caja',d);cajaView(d)};
+
 /* ==== COBRO INSCRIPCIÓN / RECIBOS / IMPORTAR / PAPELERA / FOTOS ==== */
 const shrink=(f,mx=640)=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>{const k=Math.min(1,mx/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.55))};im.onerror=no;im.src=URL.createObjectURL(f)});
 acts.cobi=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data(),e=(await getDoc(doc(db,'eventos',i.eventoId))).data();if(!+e.arancel)return;if(!confirm('¿Cobrar '+money(e.arancel)+' a '+i.nombre+'?'))return;
- try{await addDoc(collection(db,'ingresos'),{fecha:today(),categoria:'Eventos',concepto:'Inscripción '+e.nombre+' — '+i.nombre,importe:+e.arancel,createdAt:serverTimestamp(),updatedAt:serverTimestamp()})}catch{return toast('Tu rol no puede registrar ingresos')}
+ try{await addDoc(collection(db,'ingresos'),{fecha:today(),categoria:'Eventos',concepto:'Inscripción '+e.nombre+' — '+i.nombre,importe:+e.arancel,medio:'Efectivo',createdAt:serverTimestamp(),updatedAt:serverTimestamp()})}catch{return toast('Tu rol no puede registrar ingresos')}
  await updateDoc(r,{pagado:true,fechaPago:today(),updatedAt:serverTimestamp()});log('cobro','inscripciones',t);acts.ev(i.eventoId)};
 acts.recibo=async id=>{const w=window.open('','_blank');if(!w)return toast('Permití ventanas emergentes');const c=(await getDoc(doc(db,'cuotas',id))).data(),n='R-'+id.slice(0,6).toUpperCase();
  w.document.write(`<!doctype html><meta charset="utf-8"><title>Recibo ${n}</title><style>body{font-family:Arial,sans-serif;margin:32px;max-width:560px}.r{border:2px solid #7a1426;padding:22px;border-radius:12px}h2{color:#7a1426;margin:0 0 6px}td{padding:5px 10px}@media print{button{display:none}}</style><button onclick="print()">🖨️ Imprimir / Guardar PDF</button><div class="r"><h2>AUTOS CLÁSICOS PILAR</h2><b>RECIBO ${n}</b><table><tr><td>Fecha de pago</td><td>${esc(c.fechaPago||today())}</td></tr><tr><td>Socio</td><td>${esc(c.socio)}</td></tr><tr><td>Concepto</td><td>Cuota ${esc(c.periodo)}</td></tr><tr><td>Medio</td><td>${esc(c.medio||'-')}</td></tr><tr><td><b>Importe</b></td><td><b>${money(c.importe)}</b></td></tr></table><p>Recibimos conforme el pago indicado. ¡Gracias!</p></div>`);w.document.close()};
