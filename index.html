@@ -667,7 +667,7 @@ acts.bev=id=>{closeM();acts.ev(id)};
 
 
 /* ==== ACREDITAR CON UN CLIC (CON CONFIRMACIÓN) ==== */
-acts.acr1=async t=>{const ref=doc(db,'inscripciones',t),i=(await getDoc(ref)).data();if(!i)return;
+acts.acr1=async t=>{const ref=doc(db,'inscripciones',t),i=(await(navigator.onLine?getDoc(ref).catch(()=>getDocFromCache(ref)):getDocFromCache(ref)).catch(()=>null))?.data();if(!i)return toast('Sin conexión y este inscripto no está guardado en el dispositivo');
  if(i.acreditado)return toast('Ya está acreditado');if(i.estado==='CANCELADO')return toast('La inscripción está cancelada');if(['PREINSCRIPTO','ESPERA'].includes(i.estado))return toast('Primero confirmá la inscripción');
  if(!confirm('¿Acreditar a '+i.nombre+(i.vehiculo?' ('+i.vehiculo+')':'')+'?'))return;
  const up={acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,metodoAcreditacion:'MANUAL',updatedAt:serverTimestamp()};
