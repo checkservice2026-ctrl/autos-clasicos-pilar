@@ -170,7 +170,7 @@ AUTHENTICATION
 ============================== */
 acts.login=()=>signInWithEmailAndPassword(auth,$('#em').value.trim(),$('#pw').value).catch(()=>toast('Credenciales incorrectas'));
 acts.reset=async()=>{const e=$('#em').value.trim();if(!e)return toast('Ingresá tu email');await sendPasswordResetEmail(auth,e);toast('Te enviamos un correo para restablecer la contraseña')};
-acts.logout=()=>signOut(auth);
+acts.logout=async()=>{if(window._lo)return;window._lo=1;$('#nav').classList.remove('open');$('#nbd').classList.remove('open');const sp=showSplash(3000);try{await signOut(auth)}catch(e){console.error(e)}await sp;window._lo=0};
 const splashDone=new Promise(r=>{const t0=performance.now(),f=$('#pfill'),pc=$('#ppct');
   const step=n=>{const k=Math.min(1,(n-t0)/5000);f.style.width=(k*100)+'%';pc.textContent=Math.floor(k*100)+'%';if(k<1)requestAnimationFrame(step)};
   requestAnimationFrame(step);
@@ -286,7 +286,7 @@ async function accredit(token){
   evStats();
 }
 async function evStats(){const ev=$('#evsel').value;if(!ev)return;const ins=await where1('inscripciones','eventoId',ev);const a=ins.filter(i=>i.acreditado).sort((x,y)=>(y.fechaAcreditacion?.seconds||0)-(x.fechaAcreditacion?.seconds||0));
-  $('#stats').innerHTML=`<div class="card"><div class="num">${a.length} / ${ins.filter(i=>i.estado!=='CANCELADO').length}</div>ACREDITADOS<hr>Últimas:<br>${a.slice(0,5).map(i=>esc(i.nombre)).join('<br>')||'—'}<br><button class="b l" data-a="lst" data-i="in">Ver quiénes ingresaron</button><button class="b l" data-a="lst" data-i="out">Ver quiénes faltan</button><hr><small>📥 ${ins.length} inscripciones guardadas para uso sin conexión</small></div>`}
+  $('#stats').innerHTML=`<div class="card"><div class="num">${a.length} / ${ins.filter(i=>i.estado!=='CANCELADO').length}</div>ACREDITADOS<hr>Últimas:<br>${a.slice(0,5).map(i=>esc(i.nombre)).join('<br>')||'—'}<br><button class="b l" data-a="lst" data-i="in">Ver quiénes ingresaron</button><button class="b l" data-a="lst" data-i="out">Ver quiénes faltan</button><hr><small>📥 ${ins.filter(i=>i.estado!=='CANCELADO').length} inscripciones guardadas para uso sin conexión${ins.some(i=>i.estado==='CANCELADO')?` (+${ins.filter(i=>i.estado==='CANCELADO').length} cancelada${ins.filter(i=>i.estado==='CANCELADO').length>1?'s':''})`:''}</small></div>`}
 async function acredView(modo,evId){
   loading();const evs=(await all('eventos')).filter(e=>e.estado==='PUBLICADO');
   main(`<h2>${modo?'MODO EVENTO':'ACREDITACIÓN'}</h2><select id="evsel">${evs.map(e=>`<option value="${e.id}"${e.id===evId?' selected':''}>${esc(e.nombre)}</option>`).join('')||'<option value="">Sin eventos publicados</option>'}</select><button class="b big" data-a="scan"${modo?' style="position:fixed;left:1em;right:1em;bottom:calc(1em + env(safe-area-inset-bottom));width:auto;z-index:6;padding:1.4em;font-size:1.3rem"':''}>ESCANEAR QR</button><div id="res"></div><div id="stats"></div>${modo?'<div style="height:6em"></div>':''}`);
@@ -687,6 +687,52 @@ acts.acr1=async t=>{const ref=doc(db,'inscripciones',t),i=(await(navigator.onLin
 acts.acr1l=async t=>{await acts.acr1(t);acts.lst('out')};
 
 acts.burger=()=>{$('#nav').classList.toggle('open');$('#nbd').classList.toggle('open')};
+
+/* ==== SPLASH DE SALIDA ==== */
+function showSplash(ms=3000){return new Promise(ok=>{if(document.getElementById('splash'))return ok();
+ if(!document.getElementById('splashcss')){const st=document.createElement('style');st.id='splashcss';st.textContent=`
+#splash{position:fixed;inset:0;z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#1a0610 0%,#4a0f1d 38%,#7a1426 62%,#e07b45 100%);color:#fff;opacity:0;transition:opacity .4s;overflow:hidden}
+#splash.in{opacity:1}
+.sp-top{position:absolute;top:11%;left:0;right:0;text-align:center;padding:0 1em}
+.sp-top img{height:clamp(64px,13vmin,100px);width:auto;animation:spPulse 1.6s ease-in-out infinite;filter:drop-shadow(0 4px 14px rgba(0,0,0,.45))}
+.sp-top h1{margin:.5em 0 .2em;font-size:clamp(1rem,4.2vmin,1.6rem);letter-spacing:.3em;font-weight:800}
+.sp-top p{margin:0;opacity:.85;font-size:clamp(.8rem,2.6vmin,1rem);letter-spacing:.08em}
+.sp-sun{position:absolute;left:50%;bottom:30%;width:52vmin;height:52vmin;border-radius:50%;background:radial-gradient(circle,#ffe2b0 0%,#ffb067 38%,rgba(255,176,103,0) 70%);animation:spSun 3s ease-out forwards}
+.sp-h{position:absolute;left:0;right:0;height:20vmin;background-repeat:repeat-x;background-size:60vmin 100%;animation:spHill 14s linear infinite}
+.sp-h.far{bottom:24%;opacity:.55;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 100' preserveAspectRatio='none'%3E%3Cpath d='M0 100V55L60 25L110 50L170 15L230 58L290 28L350 52L400 55V100Z' fill='%23501020'/%3E%3C/svg%3E")}
+.sp-h.near{bottom:20%;height:15vmin;animation-duration:7s;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 100' preserveAspectRatio='none'%3E%3Cpath d='M0 100V62L70 38L130 60L200 30L260 60L330 40L400 62V100Z' fill='%23260812'/%3E%3C/svg%3E")}
+.sp-road{position:absolute;left:0;right:0;bottom:0;height:20%;background:#12070b;border-top:3px solid #e07b45}
+.sp-road::before{content:'';position:absolute;left:0;right:0;top:50%;height:6px;background:repeating-linear-gradient(90deg,#ffe9a8 0 50px,transparent 50px 110px);animation:spRoad .45s linear infinite}
+.sp-run{position:absolute;left:50%;bottom:calc(20% - 16px);width:min(66vw,340px);margin-left:calc(min(66vw,340px) / -2);animation:spRun 3s cubic-bezier(.45,.05,.3,1) forwards}
+.sp-car{display:block;width:100%;animation:spBob .32s ease-in-out infinite alternate}
+.sp-w,.sp-s{transform-box:fill-box;transform-origin:center}
+.sp-w{animation:spSpin .45s linear infinite}
+.sp-s{animation:spSmoke 1s ease-out infinite;opacity:0}
+.sp-bar{position:absolute;bottom:6%;left:16%;right:16%;height:5px;border-radius:9px;background:rgba(255,255,255,.2);overflow:hidden}
+.sp-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#e07b45,#ffe2b0);animation:spBar 3s linear forwards}
+@keyframes spRun{0%{transform:translateX(-120vw)}30%{transform:translateX(0)}78%{transform:translateX(0)}100%{transform:translateX(120vw)}}
+@keyframes spBob{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+@keyframes spSpin{to{transform:rotate(360deg)}}
+@keyframes spRoad{to{background-position-x:-110px}}
+@keyframes spHill{to{background-position-x:-60vmin}}
+@keyframes spSun{from{transform:translateY(35%)}to{transform:translateY(0)}}
+@keyframes spBar{to{width:100%}}
+@keyframes spPulse{50%{transform:scale(1.06)}}
+@keyframes spSmoke{0%{opacity:.5;transform:translate(0,0) scale(.6)}100%{opacity:0;transform:translate(-46px,-18px) scale(2.2)}}
+@media(prefers-reduced-motion:reduce){#splash *{animation:none!important}.sp-bar i{animation:spBar 3s linear forwards!important}}`;document.head.append(st)}
+ const w=(x)=>`<g class="sp-w"><circle cx="${x}" cy="86" r="15" fill="#141414"/><circle cx="${x}" cy="86" r="9" fill="#efe7d3"/><circle cx="${x}" cy="86" r="3" fill="#8a8a8a"/><path d="M${x} 77V95M${x-9} 86H${x+9}M${x-6.4} 79.6L${x+6.4} 92.4M${x+6.4} 79.6L${x-6.4} 92.4" stroke="#9a9a9a" stroke-width="1.4"/></g>`;
+ const el=document.createElement('div');el.id='splash';
+ el.innerHTML=`<div class="sp-sun" style="margin-left:-26vmin"></div><div class="sp-top"><img src="logo.png" alt="" onerror="this.remove()"><h1>AUTOS CLÁSICOS PILAR</h1><p>Cerrando sesión… ¡hasta la próxima!</p></div><div class="sp-h far"></div><div class="sp-h near"></div><div class="sp-road"></div>
+ <div class="sp-run"><svg class="sp-car" viewBox="0 0 250 110"><ellipse cx="125" cy="102" rx="108" ry="5" fill="rgba(0,0,0,.4)"/><circle class="sp-s" cx="10" cy="82" r="5" fill="#fff"/><circle class="sp-s" cx="10" cy="82" r="5" fill="#fff" style="animation-delay:.33s"/><circle class="sp-s" cx="10" cy="82" r="5" fill="#fff" style="animation-delay:.66s"/>
+ <path d="M232 72 L250 61 L250 84Z" fill="rgba(255,244,194,.4)"/>
+ <path d="M14 80C14 64 24 60 44 58L66 55C74 36 94 28 120 28L154 28C172 30 184 45 190 56L212 60C226 64 232 72 232 80L232 86L14 86Z" fill="#c8402a"/>
+ <path d="M76 54C82 40 96 35 118 35L126 35L126 54Z" fill="#d6ecf5"/><path d="M134 35L152 35C163 37 171 46 176 54L134 54Z" fill="#d6ecf5"/>
+ <path d="M14 70H230" stroke="#f6e7c3" stroke-width="3"/><circle cx="64" cy="86" r="19" fill="#1a0a0e"/><circle cx="188" cy="86" r="19" fill="#1a0a0e"/>${w(64)}${w(188)}
+ <circle cx="228" cy="72" r="6" fill="#fff4c2"/><rect x="226" y="82" width="10" height="4" rx="2" fill="#efe7d3"/><rect x="10" y="82" width="10" height="4" rx="2" fill="#efe7d3"/><rect x="12" y="68" width="4" height="7" fill="#ff5a4a"/></svg></div>
+ <div class="sp-bar"><i></i></div>`;
+ document.body.append(el);requestAnimationFrame(()=>el.classList.add('in'));
+ setTimeout(()=>{el.classList.remove('in');setTimeout(()=>{el.remove();ok()},400)},ms)})}
+
 /* ==== MENÚS DESPLEGABLES ==== */
 acts.rmenu=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data(),e=(await getDoc(doc(db,'eventos',i.eventoId))).data()||{};
  const B=(a,l,c='l')=>`<button class="b ${c} big" data-a="rm" data-i="${t}|${a}">${l}</button>`;
