@@ -45,7 +45,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:.65em .5
 th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}tbody tr:hover{background:color-mix(in srgb,var(--ac) 6%,transparent)}
 .wrap{overflow-x:auto}
 .badge{padding:.2em .7em;border-radius:99px;font-size:.72rem;font-weight:600;background:var(--bd)}
-.ACTIVO,.CONFIRMADO,.PUBLICADO{background:rgba(34,197,94,.2)}.ACREDITADO{background:rgba(59,130,246,.2)}.BAJA,.CANCELADO{background:rgba(239,68,68,.2)}.SUSPENDIDO,.PREINSCRIPTO,.BORRADOR{background:rgba(245,158,11,.22)}
+.ACTIVO,.CONFIRMADO,.PUBLICADO{background:rgba(34,197,94,.2)}.ACREDITADO{background:rgba(59,130,246,.2)}.BAJA,.CANCELADO{background:rgba(239,68,68,.2)}.SUSPENDIDO,.PREINSCRIPTO,.BORRADOR{background:rgba(245,158,11,.22)}.ESPERA{background:rgba(139,92,246,.25)}
 #modal{position:fixed;inset:0;background:#0008;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;z-index:50}
 #modal>div{background:var(--sf);color:var(--tx);width:100%;max-width:520px;max-height:92vh;overflow:auto;padding:1.2em;border-radius:22px 22px 0 0;animation:pop .25s ease}
 @media(min-width:600px){#modal{align-items:center}#modal>div{border-radius:22px}}
@@ -112,7 +112,7 @@ FIREBASE
 ============================== */
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,createUserWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {getFirestore,initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getDocFromCache,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,serverTimestamp,runTransaction} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getDocFromCache,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,serverTimestamp,runTransaction,limit,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // >>> PEGÁ ACÁ LAS CREDENCIALES (Firebase Console > Configuración del proyecto > Tus apps > Web) <<<
 const firebaseConfig = {
@@ -125,6 +125,8 @@ const firebaseConfig = {
 };
 import {getStorage,ref,uploadBytes,getDownloadURL} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 const app=initializeApp(firebaseConfig),auth=getAuth(app),db=(()=>{try{return initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}catch{return getFirestore(app)}})(),st=getStorage(app),auth2=getAuth(initializeApp(firebaseConfig,'sec'));
+const APPCHECK_KEY='';/* pegá acá la clave reCAPTCHA v3 de Firebase App Check */
+if(APPCHECK_KEY)import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js').then(m=>m.initializeAppCheck(app,{provider:new m.ReCaptchaV3Provider(APPCHECK_KEY),isTokenAutoRefreshEnabled:true})).catch(e=>console.error('AppCheck',e));
 
 /* ==============================
 UI
@@ -164,7 +166,7 @@ const splashDone=new Promise(r=>{const t0=performance.now(),f=$('#pfill'),pc=$('
   const step=n=>{const k=Math.min(1,(n-t0)/5000);f.style.width=(k*100)+'%';pc.textContent=Math.floor(k*100)+'%';if(k<1)requestAnimationFrame(step)};
   requestAnimationFrame(step);
   setTimeout(()=>{f.style.width='100%';pc.textContent='100%';r()},5000)});
-const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{me=u;if(u){try{const s=await getDoc(doc(db,'users',u.uid));role=s.exists()?s.data().role:'SOCIO'}catch{role='SOCIO'}try{const pd=await getDoc(doc(db,'config','permisos'));PERM=pd.exists()?(pd.data().map||null):null}catch{PERM=null}}r();if(started)route()}));
+const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{me=u;if(u){window._rulesErr=null;try{const s=await getDoc(doc(db,'users',u.uid));role=s.exists()?s.data().role:'SOCIO'}catch(e){role='SOCIO';if(e&&e.code==='permission-denied')window._rulesErr=e.code}try{const pd=await getDoc(doc(db,'config','permisos'));PERM=pd.exists()?(pd.data().map||null):null}catch{PERM=null}}r();if(started)route()}));
 let started=false;
 
 /* ==============================
@@ -183,10 +185,12 @@ const showTicket=async i=>{
 acts.cm=closeM;
 acts.dl=()=>{const c=$('#qr canvas');if(!c)return toast('QR no disponible');const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='qr-acp.png';a.click()};
 acts.cp=async t=>{await navigator.clipboard.writeText(linkOf(t));toast('Enlace copiado')};
-acts.wa=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data();
-  const m=`Hola ${i.nombre.split(' ')[0]} 👋\n\nYa estás inscripto en el evento de Autos Clásicos Pilar.\n\nEvento:\n${i.eventoNombre}\n\nParticipante:\n${i.nombre}\n\nVehículo:\n${i.vehiculo||'-'}\n\nPresentá el QR al ingresar para acreditar tu participación.\n${linkOf(t)}\n\n¡Nos vemos!`;
+const waNorm=raw=>{let d=String(raw||'').replace(/\D/g,'').replace(/^00/,'');if(d.startsWith('54'))d=d.slice(2);if(d.startsWith('9')&&d.length===11)d=d.slice(1);d=d.replace(/^0+/,'');if(d.length===12){for(const k of [2,3,4]){if(d.slice(k,k+2)==='15'){d=d.slice(0,k)+d.slice(k+2);break}}}return d.length===10?'549'+d:null};
+const WA_ERR='WhatsApp inválido: poné código de área + número (ej: 3525 123456)';
+acts.wa=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data(),ev0=(await getDoc(doc(db,'eventos',i.eventoId))).data()||{};
+  const m=`Hola ${i.nombre.split(' ')[0]} 👋\n\nYa estás inscripto en el evento de Autos Clásicos Pilar.\n\nEvento:\n${i.eventoNombre}\n\nParticipante:\n${i.nombre}\n\nVehículo:\n${i.vehiculo||'-'}\n\nPresentá el QR al ingresar para acreditar tu participación.\n${linkOf(t)}${locTxt(ev0)}\n\n¡Nos vemos!`;
   let tel=i.whatsapp||i.telefono||'';if(!tel)try{const p=(await getDoc(doc(db,i.tipoParticipante==='SOCIO'?'socios':'participantes',i.participanteId))).data()||{};tel=p.whatsapp||p.telefono||''}catch{}
-  let d=tel.replace(/\D/g,'').replace(/^0+/,'');if(d&&!d.startsWith('54'))d='54'+(d.startsWith('9')?'':'9')+d;
+  const d=waNorm(tel);if(!d)return toast(WA_ERR);
   window.open('https://wa.me/'+d+'?text='+encodeURIComponent(m),'_blank')};
 
 /* ==============================
@@ -194,7 +198,7 @@ SOCIOS / EVENTOS (CRUD)
 ============================== */
 const FIELDS={
  socios:[['numero','Nº de socio'],['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['email','Email','email'],['categoria','Categoría'],['estado','Estado','ACTIVO,SUSPENDIDO,BAJA']],
- eventos:[['nombre','Nombre'],['fecha','Fecha','date'],['hora','Hora','time'],['lugar','Lugar'],['cupo','Cupo','number'],['estado','Estado','BORRADOR,PUBLICADO,FINALIZADO,CANCELADO']]};
+ eventos:[['nombre','Nombre'],['fecha','Fecha','date'],['hora','Hora','time'],['lugar','Lugar'],['cupo','Cupo','number'],['arancel','Arancel de inscripción ($)','number'],['estado','Estado','BORRADOR,PUBLICADO,FINALIZADO,CANCELADO']]};
 Object.assign(FIELDS,{
  vehiculos:[['socioNumero','Nº de socio'],['marca','Marca'],['modelo','Modelo'],['version','Versión'],['anio','Año','number'],['patente','Patente'],['color','Color'],['motor','Motor'],['chasis','Chasis'],['tipo','Tipo','AUTO,PICKUP,MOTO,OTRO'],['condicion','Condición','ORIGINAL,RESTAURADO,MODIFICADO'],['descripcion','Descripción / historia']],
  cuotas:[['socio','Socio (Nº o nombre)'],['periodo','Período (AAAA-MM)'],['importe','Importe','number'],['vencimiento','Vencimiento','date'],['fechaPago','Fecha de pago','date'],['medio','Medio de pago'],['estado','Estado','PENDIENTE,PAGADA,VENCIDA']],
@@ -208,8 +212,8 @@ async function listView(c,title){
   loading();const rows=await all(c);
   if(c==='cuotas'&&can(c))for(const r of rows)if(r.estado==='PENDIENTE'&&r.vencimiento&&r.vencimiento<today()){r.estado='VENCIDA';updateDoc(doc(db,'cuotas',r.id),{estado:'VENCIDA',updatedAt:serverTimestamp()}).catch(()=>{})}
   const est=(FIELDS[c].find(f=>f[0]==='estado')||[])[2];
-  const btn=r=>[c==='socios'?`<button class="b l" data-a="ficha" data-i="${r.id}">Ficha</button>`:'',c==='eventos'?`<button class="b" data-a="ev" data-i="${r.id}">Abrir</button>`:'',['socios','vehiculos','eventos'].includes(c)?`<button class="b l" data-a="fotos" data-i="${c}/${r.id}">Fotos</button>`:'',c==='comunicados'?`<button class="b" data-a="cwa" data-i="${r.id}">WhatsApp</button>`:'',c==='cuotas'&&can(c)&&r.estado!=='PAGADA'?`<button class="b" data-a="pay" data-i="${r.id}">Cobrar</button>`:'',can(c)?`<button class="b l" data-a="edit" data-i="${c}|${r.id}">Editar</button>`:''].join('');
-  main(`<h2>${title} <small>(${rows.length})</small></h2>${can(c)?`<button class="b" data-a="new" data-i="${c}">+ Nuevo</button>`:''}${c==='cuotas'&&can(c)?'<button class="b l" data-a="gen">Generar cuotas del mes</button>':''}<div style="display:flex;gap:.5em;flex-wrap:wrap"><input id="q" placeholder="Buscar…" style="flex:2;min-width:160px">${est?`<select id="fe" style="flex:1;min-width:130px"><option value="">Todos los estados</option>${est.split(',').map(o=>`<option>${o}</option>`).join('')}</select>`:''}</div><div class="card wrap"><table><tr>${COLS[c].map(k=>`<th>${k}</th>`).join('')}<th></th></tr>${rows.map(r=>`<tr data-s="${esc(Object.values(r).filter(v=>typeof v!=='object').join(' ').toLowerCase())}" data-e="${esc(r.estado||'')}">${COLS[c].map(k=>`<td>${k==='estado'?badge(r[k]):esc(r[k])}</td>`).join('')}<td>${btn(r)}</td></tr>`).join('')}</table>${rows.length?'':'<div class="empty">Sin registros todavía</div>'}</div>`);
+  const btn=r=>[c==='socios'?`<button class="b l" data-a="ficha" data-i="${r.id}">Ficha</button>`:'',c==='eventos'?`<button class="b" data-a="ev" data-i="${r.id}">Abrir</button>`:'',['socios','vehiculos','eventos'].includes(c)?`<button class="b l" data-a="fotos" data-i="${c}/${r.id}">Fotos</button>`:'',c==='comunicados'?`<button class="b" data-a="cwa" data-i="${r.id}">WhatsApp</button>`:'',c==='cuotas'&&can(c)&&r.estado!=='PAGADA'?`<button class="b" data-a="pay" data-i="${r.id}">Cobrar</button>`:(c==='cuotas'&&r.estado==='PAGADA'?`<button class="b l" data-a="recibo" data-i="${r.id}">🧾 Recibo</button>`:''),can(c)?`<button class="b l" data-a="edit" data-i="${c}|${r.id}">Editar</button>`:''].join('');
+  main(`<h2>${title} <small>(${rows.length})</small></h2>${can(c)?`<button class="b" data-a="new" data-i="${c}">+ Nuevo</button>`:''}${c==='socios'&&can(c)?'<button class="b l" data-a="imps">📥 Importar CSV</button>':''}${c==='cuotas'&&can(c)?'<button class="b l" data-a="gen">Generar cuotas del mes</button>':''}<div style="display:flex;gap:.5em;flex-wrap:wrap"><input id="q" placeholder="Buscar…" style="flex:2;min-width:160px">${est?`<select id="fe" style="flex:1;min-width:130px"><option value="">Todos los estados</option>${est.split(',').map(o=>`<option>${o}</option>`).join('')}</select>`:''}</div><div class="card wrap"><table><tr>${COLS[c].map(k=>`<th>${k}</th>`).join('')}<th></th></tr>${rows.map(r=>`<tr data-s="${esc(Object.values(r).filter(v=>typeof v!=='object').join(' ').toLowerCase())}" data-e="${esc(r.estado||'')}">${COLS[c].map(k=>`<td>${k==='estado'?badge(r[k]):esc(r[k])}</td>`).join('')}<td>${btn(r)}</td></tr>`).join('')}</table>${rows.length?'':'<div class="empty">Sin registros todavía</div>'}</div>`);
   const ap=()=>{const q=$('#q').value.toLowerCase(),e=$('#fe')?$('#fe').value:'';document.querySelectorAll('tr[data-s]').forEach(tr=>tr.classList.toggle('hide',!tr.dataset.s.includes(q)||!!(e&&tr.dataset.e!==e)))};
   $('#q').oninput=ap;if($('#fe'))$('#fe').onchange=ap;
 }
@@ -220,14 +224,16 @@ acts.save=async k=>{const[c,id]=k.split('|');const d=formData();if(c==='socios')
   if(d.cupo)d.cupo=+d.cupo;if(d.importe)d.importe=+d.importe;if(d.anio)d.anio=+d.anio;
   if(id){await updateDoc(doc(db,c,id),{...d,updatedAt:serverTimestamp()});log('modificacion',c,id)}else{const r=await addDoc(collection(db,c),{...d,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});log('alta',c,r.id)}
   closeM();toast('Guardado');go(c)};
-acts.del=async k=>{const[c,id]=k.split('|');if(!confirm('¿Eliminar definitivamente?'))return;await deleteDoc(doc(db,c,id));log('baja',c,id);closeM();go(c)};
+acts.del=async k=>{const[c,id]=k.split('|');if(!confirm('¿Eliminar? Queda en la Papelera hasta que la vacíes.'))return;
+  try{const d=(await getDoc(doc(db,c,id))).data();await setDoc(doc(db,'papelera',c+'__'+id),{col:c,docId:id,data:d,borradoPor:me.email,fecha:serverTimestamp()})}catch{return toast('No se pudo mover a la Papelera (revisá las reglas). No se borró nada.')}
+  await deleteDoc(doc(db,c,id));log('baja',c,id);closeM();go(c)};
 
 /* ==============================
 PARTICIPANTES + INSCRIPCIONES
 ============================== */
 acts.ev=async id=>{
   loading();const e=(await getDoc(doc(db,'eventos',id))).data(),ins=await where1('inscripciones','eventoId',id);
-  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Inscriptos ${ins.filter(i=>i.estado!=='CANCELADO').length}/${esc(e.cupo||'∞')}</p>${staff()?`<button class="b" data-a="addp" data-i="${id}">+ Agregar participante</button>${e.estado==='PUBLICADO'?`<button class="b" data-a="acev" data-i="${id}">📷 Acreditar (escanear QR)</button><button class=\"b l\" data-a=\"insl\" data-i=\"${id}\">🔗 Link de inscripción</button>`:''}`:''}<div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo)}${i.origen==='WEB'?` · 🌐 DNI ${esc(i.dni)} · ${esc(i.telefono)}`:''}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td><button class="b" data-a="tk" data-i="${i.id}">QR</button>${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?`<button class="b g" data-a="cinsc" data-i="${i.id}">Cancelar</button>`:''}${staff()&&i.estado==='PREINSCRIPTO'?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}</td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
+  main(`<button class="b l" data-a="nav" data-i="eventos">← Eventos</button><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha)} ${esc(e.hora)} · ${esc(e.lugar)} · Lugares ${ins.filter(i=>['CONFIRMADO','ACREDITADO'].includes(i.estado)).length}/${esc(e.cupo||'∞')} · Pendientes ${ins.filter(i=>i.estado==='PREINSCRIPTO').length} · En espera ${ins.filter(i=>i.estado==='ESPERA').length}</p><button class="b l" data-a="stats" data-i="${id}">📊 Estadísticas</button><button class="b l" data-a="exlist" data-i="${id}">📄 Exportar lista</button><button class="b l" data-a="mapa" data-i="${id}">${ll(e)?'📍 Mapa / compartir':(staff()?'📍 Marcar ubicación':'')}</button>${staff()?`<button class="b l" data-a="live" data-i="${id}">📡 Seguimiento en vivo</button>`:''}${staff()?`<button class="b" data-a="addp" data-i="${id}">+ Agregar participante</button>${e.estado==='PUBLICADO'?`<button class="b" data-a="acev" data-i="${id}">📷 Acreditar (escanear QR)</button><button class=\"b l\" data-a=\"insl\" data-i=\"${id}\">🔗 Link de inscripción</button>`:''}`:''}<div class="card wrap"><table>${ins.map(i=>`<tr><td>${esc(i.nombre)}${i.foto?`<br><a href="${esc(i.foto)}" target="_blank"><img src="${esc(i.foto)}" style="height:56px;border-radius:8px;margin-top:4px"></a>`:''}<br><small>${esc(i.vehiculo)}${i.origen==='WEB'?` · 🌐 DNI ${esc(i.dni)} · ${esc(i.telefono)}`:''}</small></td><td>${esc(i.tipoParticipante)}</td><td>${badge(i.estado)}</td><td><button class="b" data-a="tk" data-i="${i.id}">QR</button>${staff()?`<button class="b l" data-a="avisar" data-i="${i.id}">💬</button>`:''}${staff()&&+e.arancel&&i.estado!=='CANCELADO'?(i.pagado?'<small>💵 Pagó</small>':`<button class="b" data-a="cobi" data-i="${i.id}">💵 Cobrar</button>`):''}${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?`<button class="b g" data-a="cinsc" data-i="${i.id}">Cancelar</button>`:''}${staff()&&['PREINSCRIPTO','ESPERA'].includes(i.estado)?`<button class="b" data-a="conf" data-i="${i.id}">Confirmar</button>`:''}</td></tr>`).join('')}</table>${ins.length?'':'<div class="empty">Aún sin participantes</div>'}</div>`);
 };
 acts.tk=async t=>showTicket({id:t,...(await getDoc(doc(db,'inscripciones',t))).data()});
 acts.addp=ev=>modal(`<h3>¿Es socio del club?</h3><button class="b big" data-a="psoc" data-i="${ev}">SÍ, ES SOCIO</button><button class="b l big" data-a="pinv" data-i="${ev}">NO, ES INVITADO</button>`);
@@ -237,15 +243,15 @@ acts.psoc=async ev=>{const s=(await all('socios')).filter(x=>x.estado!=='BAJA');
   $('#sq').oninput=draw;draw()};
 acts.pick=async k=>{const[ev,sid]=k.split('|');const s=window._s.find(x=>x.id===sid);await inscribir(ev,sid,'SOCIO',s.nombre+' '+s.apellido,$('#sv').value.trim(),$('#se').value)};
 acts.pinv=ev=>modal(`<h3>Invitado</h3>${[['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['whatsapp','WhatsApp'],['email','Email'],['observaciones','Observaciones'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],['patente','Patente'],['estadoIns','Estado de inscripción','CONFIRMADO,PREINSCRIPTO']].map(f=>fld(f,'')).join('')}<button class="b" data-a="saveinv" data-i="${ev}">Inscribir</button>`);
-acts.saveinv=async ev=>{const d=formData();if(!d.nombre||!d.apellido)return toast('Nombre y apellido obligatorios');const est=d.estadoIns;delete d.estadoIns;
+acts.saveinv=async ev=>{const d=formData();if(!d.nombre||!d.apellido)return toast('Nombre y apellido obligatorios');const wn=waNorm(d.whatsapp);if(!wn)return toast(WA_ERR);d.whatsapp=wn;const est=d.estadoIns;delete d.estadoIns;
   const r=await addDoc(collection(db,'participantes'),{...d,tipo:'INVITADO',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-  await inscribir(ev,r.id,'INVITADO',d.nombre+' '+d.apellido,[d.marca,d.modelo,d.anio].filter(Boolean).join(' '),est)};
-async function inscribir(ev,pid,tipo,nombre,vehiculo,est){
+  await inscribir(ev,r.id,'INVITADO',d.nombre+' '+d.apellido,[d.marca,d.modelo,d.anio].filter(Boolean).join(' '),est,{marca:d.marca||'',modelo:d.modelo||'',anio:d.anio||''})};
+async function inscribir(ev,pid,tipo,nombre,vehiculo,est,extra={}){
   const dup=(await where1('inscripciones','eventoId',ev)).find(i=>i.participanteId===pid&&i.estado!=='CANCELADO');
   if(dup)return toast('Ya está inscripto en este evento');
   const e=(await getDoc(doc(db,'eventos',ev))).data(),token=genToken();
-  const act=(await where1('inscripciones','eventoId',ev)).filter(i=>i.estado!=='CANCELADO').length;if(e.cupo&&act>=e.cupo)return toast('Cupo completo ('+e.cupo+')');
-  const i={eventoId:ev,eventoNombre:e.nombre,participanteId:pid,tipoParticipante:tipo,nombre,vehiculo,fechaInscripcion:serverTimestamp(),estado:est||'CONFIRMADO',tokenQR:token,acreditado:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
+  const act=(await where1('inscripciones','eventoId',ev)).filter(i=>['CONFIRMADO','ACREDITADO'].includes(i.estado)).length;if(e.cupo&&act>=e.cupo&&(est||'CONFIRMADO')==='CONFIRMADO'){if(!confirm('Cupo completo ('+e.cupo+'). ¿Anotar en LISTA DE ESPERA?'))return;est='ESPERA'}
+  const i={eventoId:ev,eventoNombre:e.nombre,participanteId:pid,tipoParticipante:tipo,nombre,vehiculo,fechaInscripcion:serverTimestamp(),estado:est||'CONFIRMADO',tokenQR:token,acreditado:false,...extra,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
   await setDoc(doc(db,'inscripciones',token),i);log('inscripcion','inscripciones',token);
   toast('Inscripción creada');showTicket({id:token,...i});
 }
@@ -254,20 +260,20 @@ async function inscribir(ev,pid,tipo,nombre,vehiculo,est){
 ACREDITACIÓN
 ============================== */
 let scanner=null;
-const offAccredit=async ref=>{try{const s=await getDocFromCache(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};if(i.estado==='PREINSCRIPTO')return{k:'pend',i};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};if(i.acreditado)return{k:'warn',i};updateDoc(ref,{acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,updatedAt:serverTimestamp()}).catch(()=>{});return{k:'ok',i,off:true}}catch{return{k:'nocache'}}};
+const offAccredit=async ref=>{try{const s=await getDocFromCache(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};if(i.estado==='PREINSCRIPTO'||i.estado==='ESPERA')return{k:'pend',i};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};if(i.acreditado)return{k:'warn',i};updateDoc(ref,{acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,updatedAt:serverTimestamp()}).catch(()=>{});return{k:'ok',i,off:true}}catch{return{k:'nocache'}}};
 acts.lst=async k=>{const ev=$('#evsel')?.value;if(!ev)return;const ins=(await where1('inscripciones','eventoId',ev)).filter(i=>i.estado!=='CANCELADO');const hr=d=>d?.toDate?d.toDate().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):'';
  const l=k==='in'?ins.filter(i=>i.acreditado).sort((x,y)=>(x.fechaAcreditacion?.seconds||0)-(y.fechaAcreditacion?.seconds||0)):ins.filter(i=>!i.acreditado).sort((x,y)=>String(x.nombre).localeCompare(String(y.nombre)));
  modal(`<h3>${k==='in'?'Ingresaron':'Faltan ingresar'} (${l.length} de ${ins.length})</h3><div class="wrap"><table>${l.map(i=>`<tr><td>${esc(i.nombre)}<br><small>${esc(i.vehiculo||'')}</small></td><td>${k==='in'?hr(i.fechaAcreditacion):badge(i.estado)}</td></tr>`).join('')||'<tr><td class="empty">Nadie por ahora</td></tr>'}</table></div><button class="b l big" data-a="cm">Cerrar</button>`)};
 async function accredit(token){
   const ref=doc(db,'inscripciones',token.trim());let out;
-  try{if(!navigator.onLine)throw{code:'unavailable'};out=await Promise.race([new Promise((_,no)=>setTimeout(()=>no({code:'unavailable'}),6000)),runTransaction(db,async tx=>{const s=await tx.get(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};if(i.estado==='PREINSCRIPTO')return{k:'pend',i};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};
+  try{if(!navigator.onLine)throw{code:'unavailable'};out=await Promise.race([new Promise((_,no)=>setTimeout(()=>no({code:'unavailable'}),6000)),runTransaction(db,async tx=>{const s=await tx.get(ref);if(!s.exists())return{k:'bad'};const i=s.data();if(i.estado==='CANCELADO')return{k:'bad'};if(i.estado==='PREINSCRIPTO'||i.estado==='ESPERA')return{k:'pend',i};const sel=$('#evsel')?.value;if(sel&&i.eventoId!==sel)return{k:'other',i};
     if(i.acreditado)return{k:'warn',i};
     tx.update(ref,{acreditado:true,estado:'ACREDITADO',fechaAcreditacion:serverTimestamp(),usuarioAcreditacion:me.email,updatedAt:serverTimestamp()});return{k:'ok',i}})])}catch(x){out=(x&&['unavailable','deadline-exceeded','failed-precondition'].includes(x.code))?await offAccredit(ref):{k:'bad'}}
   const hr=d=>d?.toDate?d.toDate().toLocaleString('es-AR'):new Date().toLocaleString('es-AR');
   if(out.k==='ok'){addDoc(collection(db,'acreditaciones'),{inscripcionId:token,eventoId:out.i.eventoId,nombre:out.i.nombre,usuario:me.email,createdAt:serverTimestamp()});log('acreditacion','inscripciones',token)}
   $('#res').innerHTML=out.k==='ok'?`<div class="res ok">🟢 ACREDITACIÓN EXITOSA<br><b>${esc(out.i.nombre)}</b><br>${esc(out.i.vehiculo)}<br>Hora: ${new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}${out.off?'<br><small>📴 Guardado en el dispositivo, se sincroniza al volver internet</small>':''}</div>`
    :out.k==='warn'?`<div class="res warn">🟡 YA ACREDITADO<br><b>${esc(out.i.nombre)}</b><br>${hr(out.i.fechaAcreditacion)}<br>Por: ${esc(out.i.usuarioAcreditacion)}</div>`
-   :out.k==='pend'?`<div class="res warn">⏳ PREINSCRIPTO<br><b>${esc(out.i.nombre)}</b><br><small>Falta confirmar la inscripción. Confirmala en el evento y volvé a escanear.</small></div>`:out.k==='nocache'?`<div class="res warn">📴 Sin conexión: este QR no está descargado en el dispositivo.<br><small>Abrí Acreditación con internet para descargar el evento.</small></div>`:out.k==='other'?`<div class="res warn">🟠 QR de otro evento<br>${esc(out.i.eventoNombre)}</div>`:`<div class="res bad">🔴 QR NO VÁLIDO</div>`;
+   :out.k==='pend'?`<div class="res warn">⏳ ${esc(out.i.estado)}<br><b>${esc(out.i.nombre)}</b><br><small>Falta confirmar la inscripción. Confirmala en el evento y volvé a escanear.</small></div>`:out.k==='nocache'?`<div class="res warn">📴 Sin conexión: este QR no está descargado en el dispositivo.<br><small>Abrí Acreditación con internet para descargar el evento.</small></div>`:out.k==='other'?`<div class="res warn">🟠 QR de otro evento<br>${esc(out.i.eventoNombre)}</div>`:`<div class="res bad">🔴 QR NO VÁLIDO</div>`;
   evStats();
 }
 async function evStats(){const ev=$('#evsel').value;if(!ev)return;const ins=await where1('inscripciones','eventoId',ev);const a=ins.filter(i=>i.acreditado).sort((x,y)=>(y.fechaAcreditacion?.seconds||0)-(x.fechaAcreditacion?.seconds||0));
@@ -310,16 +316,17 @@ acts.fotos=async k=>{const f=await where1('fotos','ref',k);
   modal(`<h3>Fotos</h3><div class="grid">${f.map(x=>`<a href="${esc(x.url)}" target="_blank"><img src="${esc(x.url)}" loading="lazy" style="width:100%;border-radius:8px;aspect-ratio:1;object-fit:cover"></a>`).join('')||'<div class="empty">Sin fotos</div>'}</div>${staff()?`<input id="pf" type="file" accept="image/*" multiple><button class="b" data-a="fup" data-i="${k}">Subir</button>`:''}<button class="b l" data-a="cm">Cerrar</button>`)};
 acts.fup=async k=>{const fs=[...$('#pf').files];if(!fs.length)return toast('Elegí fotos');
   for(const f of fs){if(f.size>5*1024*1024){toast(f.name+' supera 5 MB');continue}
-    const r=ref(st,'fotos/'+k+'/'+Date.now()+'-'+f.name.replace(/[^\w.]/g,'_'));await uploadBytes(r,f);
-    await addDoc(collection(db,'fotos'),{ref:k,url:await getDownloadURL(r),createdAt:serverTimestamp()})}
+    await addDoc(collection(db,'fotos'),{ref:k,url:await shrink(f,1000),createdAt:serverTimestamp()})}
   toast('Fotos subidas');acts.fotos(k)};
 acts.cinsc=async t=>{if(!confirm('¿Cancelar esta inscripción?'))return;const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data();
-  await updateDoc(r,{estado:'CANCELADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId)};
+  await updateDoc(r,{estado:'CANCELADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId);
+  if(['CONFIRMADO','ACREDITADO'].includes(i.estado)){const sig=(await where1('inscripciones','eventoId',i.eventoId)).filter(x=>x.estado==='ESPERA').sort((a,b)=>(a.fechaInscripcion?.seconds||0)-(b.fechaInscripcion?.seconds||0))[0];
+   if(sig&&confirm('Se liberó un lugar. ¿Confirmar a '+sig.nombre+' (primero en lista de espera)?')){await updateDoc(doc(db,'inscripciones',sig.id),{estado:'CONFIRMADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',sig.id);acts.ev(i.eventoId);if(confirm('¿Avisarle por WhatsApp con su QR?'))acts.wa(sig.id)}}};
 
 /* ==============================
 MENÚ POR ROL
 ============================== */
-const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
+const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','club','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
 const effPerm=r=>(PERM&&PERM[r])?PERM[r]:defNav(r);
 const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');return l.length?l:['cred']};
 
@@ -352,7 +359,13 @@ acts.gens=async()=>{const d=formData();if(!d.periodo||!+d.importe||!d.vencimient
   log('alta','cuotas','lote '+d.periodo);closeM();toast(n+' cuotas generadas');go('cuotas')};
 acts.csv=c=>csvOut(c);
 acts.csvf=k=>k==='deuda'?csvOut('cuotas',x=>x.estado!=='PAGADA','deuda'):k==='pagos'?csvOut('cuotas',x=>x.estado==='PAGADA','pagos'):csvOut('socios',x=>x.estado!=='ACTIVO','socios-inactivos');
-acts.conf=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data();await updateDoc(r,{estado:'CONFIRMADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId);if(i.origen==='WEB'&&confirm('Inscripción confirmada. ¿Enviarle el QR por WhatsApp?'))acts.wa(t)};
+acts.conf=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data(),e=(await getDoc(doc(db,'eventos',i.eventoId))).data()||{};
+ const occ=(await where1('inscripciones','eventoId',i.eventoId)).filter(x=>x.id!==t&&['CONFIRMADO','ACREDITADO'].includes(x.estado)).length;
+ if(e.cupo&&occ>=+e.cupo){
+  if(i.estado==='ESPERA'){if(!confirm('El cupo está completo ('+e.cupo+'). ¿Confirmar igual, excediendo el cupo?'))return}
+  else{if(!confirm('Cupo completo ('+e.cupo+'). ¿Pasar a LISTA DE ESPERA?'))return;await updateDoc(r,{estado:'ESPERA',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId);if(confirm('¿Avisarle por WhatsApp que quedó en lista de espera?'))acts.av(t+'|espera');return}}
+ await updateDoc(r,{estado:'CONFIRMADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',t);acts.ev(i.eventoId);
+ if((i.origen==='WEB'||waNorm(i.whatsapp||i.telefono))&&confirm('Inscripción confirmada. ¿Enviarle el QR por WhatsApp?'))acts.wa(t)};
 
 /* ==============================
 USUARIOS Y ROLES (solo ADMIN)
@@ -404,14 +417,14 @@ BACKUP, REPORTES Y AUDITORÍA
 const COLLS=['socios','vehiculos','eventos','participantes','inscripciones','cuotas','ingresos','egresos','acreditaciones'];
 const plain=o=>JSON.parse(JSON.stringify(o,(k,v)=>v&&typeof v==='object'&&v.seconds!==undefined&&v.nanoseconds!==undefined?new Date(v.seconds*1000).toISOString():v));
 const dlf=(n,t,ty)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()};
-acts.exp=async()=>{const o={version:1,fecha:new Date().toISOString()};for(const c of COLLS)o[c]=await all(c);dlf('acp-backup.json',JSON.stringify(plain(o)),'application/json');toast('Backup exportado')};
+acts.exp=async()=>{const o={version:1,fecha:new Date().toISOString()};for(const c of COLLS)o[c]=await all(c);dlf('acp-backup.json',JSON.stringify(plain(o)),'application/json');try{localStorage.setItem('acp-lastbackup',String(Date.now()))}catch{};toast('Backup exportado')};
 const csvOut=async(c,f,n)=>{const r=plain((await all(c)).filter(f||(()=>true))),k=[...new Set(r.flatMap(Object.keys))];dlf((n||c)+'.csv','\ufeff'+[k.join(';'),...r.map(x=>k.map(h=>'"'+String(x[h]??'').replace(/"/g,'""')+'"').join(';'))].join('\n'),'text/csv')};
 acts.imp=()=>{const f=document.createElement('input');f.type='file';f.accept='.json';
   f.onchange=async()=>{let o;try{o=JSON.parse(await f.files[0].text());if(o.version!==1)throw 0}catch{return toast('Archivo inválido')}
     const n=COLLS.filter(c=>Array.isArray(o[c]));if(!n.length)return toast('El archivo no contiene datos');window._imp=o;
     modal(`<h3>Importar datos</h3>${n.map(c=>`${c}: <b>${o[c].length}</b>`).join('<br>')}<p>Se combinan con los datos actuales; no se borra nada.</p><button class="b" data-a="impok">Confirmar importación</button><button class="b l" data-a="cm">Cancelar</button>`)};f.click()};
 acts.impok=async()=>{let n=0;for(const c of COLLS)for(const x of window._imp[c]||[]){const{id,...d}=x;if(typeof id!=='string'||!id)continue;await setDoc(doc(db,c,id),d,{merge:true});n++}closeM();log('importacion','backup','-');toast(n+' registros importados')};
-async function backupView(){main(`<h2>Backup y reportes</h2><div class="card"><button class="b" data-a="exp">EXPORTAR DATOS</button>${role==='ADMIN'?'<button class="b l" data-a="imp">IMPORTAR DATOS</button></div><div class="card"><b>Modo demostración</b><br><button class="b l" data-a="demo">Cargar datos demo</button><button class="b g" data-a="demoDel">Eliminar datos demo</button>':''}</div><div class="card"><b>Reportes CSV</b><br>${['socios','participantes','cuotas','ingresos','egresos','eventos','inscripciones','acreditaciones'].map(c=>`<button class="b l" data-a="csv" data-i="${c}">${c}</button>`).join('')}<button class="b l" data-a="csvf" data-i="deuda">deuda</button><button class="b l" data-a="csvf" data-i="pagos">pagos</button><button class="b l" data-a="csvf" data-i="inactivos">socios inactivos</button></div>`)}
+async function backupView(){main(`<h2>Backup y reportes</h2><div class="card"><button class="b" data-a="exp">EXPORTAR DATOS</button>${role==='ADMIN'?'<button class="b l" data-a="imp">IMPORTAR DATOS</button></div><div class="card"><b>Modo demostración</b><br><button class="b l" data-a="demo">Cargar datos demo</button><button class="b g" data-a="demoDel">Eliminar datos demo</button>':''}</div>${role==='ADMIN'?'<div class="card"><b>🩺 Diagnóstico de permisos</b><br><small>Prueba que las reglas de Firestore no bloqueen nada (incluye el link público).</small><br><button class="b l" data-a="diag">Probar ahora</button><div id="dg" style="margin-top:.6em"></div></div>':''}<div class="card"><b>Reportes CSV</b><br>${['socios','participantes','cuotas','ingresos','egresos','eventos','inscripciones','acreditaciones'].map(c=>`<button class="b l" data-a="csv" data-i="${c}">${c}</button>`).join('')}<button class="b l" data-a="csvf" data-i="deuda">deuda</button><button class="b l" data-a="csvf" data-i="pagos">pagos</button><button class="b l" data-a="csvf" data-i="inactivos">socios inactivos</button></div>`)}
 async function audView(){loading();const a=(await all('auditoria')).sort((x,y)=>(y.fecha?.seconds||0)-(x.fecha?.seconds||0)).slice(0,60);
   main(`<h2>Auditoría</h2><div class="card wrap"><table>${a.map(x=>`<tr><td>${x.fecha?.toDate?x.fecha.toDate().toLocaleString('es-AR'):''}</td><td>${esc(x.usuario)}</td><td>${esc(x.accion)}</td><td>${esc(x.entidad)}</td></tr>`).join('')}</table>${a.length?'':'<div class="empty">Sin registros</div>'}</div>`)}
 
@@ -498,7 +511,7 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
-const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','cal','com','gal','cred','buscar','backup','aud','users','perm'];
+const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','club','cal','com','gal','cred','buscar','backup','aud','papelera','users','perm'];
 VIEWS.com=VIEWS.comunicados;
 VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];VIEWS.perm=['Permisos',permView];
 const PR=['SOCIO','ORGANIZADOR','TESORERO','COMISION'];
@@ -506,17 +519,17 @@ function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&VIEWS[k])
  main(`<h2>Permisos por rol</h2><p><small>Marcá qué módulos ve cada rol. ADMIN siempre ve todo.</small></p><div class="card wrap"><table><tr><th>Módulo</th>${PR.map(r=>`<th>${r}</th>`).join('')}</tr>${mods.map(k=>`<tr><td>${VIEWS[k][0]}</td>${PR.map(r=>`<td><input type="checkbox" class="pc" data-r="${r}" data-k="${k}" ${effPerm(r).includes(k)?'checked':''} style="width:22px;height:22px;min-height:0;margin:0"></td>`).join('')}</tr>`).join('')}</table></div><button class="b" data-a="permsave">Guardar</button><button class="b l" data-a="permreset">Restablecer</button><p><small>Los cambios se aplican la próxima vez que cada usuario abra la app. Esto oculta módulos; la protección real de los datos la dan las reglas de Firestore.</small></p>`)}
 acts.permsave=async()=>{const m={};PR.forEach(r=>m[r]=[]);document.querySelectorAll('.pc').forEach(c=>{if(c.checked)m[c.dataset.r].push(c.dataset.k)});try{await setDoc(doc(db,'config','permisos'),{map:m});PERM=m;toast('Permisos guardados')}catch(e){toast('No se pudo guardar: revisá las reglas de Firestore')}};
 acts.permreset=async()=>{try{await deleteDoc(doc(db,'config','permisos'));PERM=null;toast('Restablecido');permView()}catch(e){toast('No se pudo restablecer')}};
-const go=k=>{if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
+const go=k=>{if(window._lv){try{window._lv.stop()}catch{}window._lv=null}if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
 acts.nav=go;
 async function pubView(t){
   $('#pub').classList.remove('hide');$('#pub').innerHTML='<div class="loader">Cargando…</div>';
-  try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t)}
+  try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='ESPERA')$('#qr').innerHTML='<div class="res warn">⏳ Lista de espera<br><small>El cupo está completo. Si se libera un lugar te avisamos.</small></div>';else if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t);try{const ev=(await getDoc(doc(db,'eventos',d.eventoId))).data();if(ll(ev))$('#pub').insertAdjacentHTML('beforeend',`<p style="text-align:center"><a class="b" href="${mapsUrl(ev)}" target="_blank" rel="noopener">📍 Cómo llegar al evento</a></p>`);if(ev&&ev.seguimiento&&['CONFIRMADO','ACREDITADO'].includes(d.estado))$('#pub').insertAdjacentHTML('beforeend',`<div class="card" style="text-align:center"><b>📡 Seguimiento en vivo</b><p><small>La organización te ve en el mapa mientras tengas esta pantalla abierta y compartiendo. Podés frenar cuando quieras.</small></p><button id="lvbtn" class="b big" data-a="lvgo" data-i="${t}|${d.eventoId}">📡 COMPARTIR MI UBICACIÓN</button><div id="lvst" style="margin-top:.5em"></div></div>`)}catch{}}
   catch(x){console.error('pubView',x);$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'no-existe')+'</small></p>'}
 }
-const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐'};
+const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐'};
 function route(){
   $('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
-  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML=navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}</button>`).join('');go(navFor()[0])}
+  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML=navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck()}
 }
 
 /* ==== APARIENCIA (tema, color, bordes) ==== */
@@ -533,21 +546,198 @@ acts.ui=i=>{const[k,v]=i.split('|'),u=UI();u[k]=v;saveUI(u);applyUI(u);modal(cfg
 acts.uireset=()=>{saveUI({});applyUI({});modal(cfgHtml())};
 const netUI=()=>$('#net').classList.toggle('hide',navigator.onLine);addEventListener('online',()=>{netUI();toast('Conexión restablecida · sincronizando')});addEventListener('offline',netUI);netUI();
 
+
+/* ==== ESTADÍSTICAS DE EVENTO ==== */
+const MARCAS2=['alfa romeo','land rover','mercedes benz','aston martin','rolls royce','mini cooper'];
+const ALIAS={vw:'Volkswagen',chevy:'Chevrolet',chev:'Chevrolet',merc:'Mercedes Benz',mercedes:'Mercedes Benz',bmw:'BMW',mg:'MG',dkw:'DKW',gm:'GM'};
+const capW=t=>t.replace(/\S+/g,w=>(w.length<=3&&w===w.toUpperCase()&&/[A-Z]/.test(w))?w:w.charAt(0).toUpperCase()+w.slice(1).toLowerCase());
+const vehParse=i=>{let marca=String(i.marca||'').trim(),modelo=String(i.modelo||'').trim(),anio=String(i.anio||'').trim();
+ if(!marca&&i.vehiculo){let t=String(i.vehiculo).trim().replace(/\s+/g,' ');const y=t.match(/\b(19\d\d|20\d\d)\b/);if(y){anio=y[1];t=t.replace(y[0],'').trim()}
+  const l=t.toLowerCase(),two=MARCAS2.find(m=>l.startsWith(m+' ')||l===m);
+  if(two){marca=t.slice(0,two.length);modelo=t.slice(two.length).trim()}else{const q=t.split(' ');marca=q.shift()||'';modelo=q.join(' ')}}
+ marca=ALIAS[marca.toLowerCase()]||(marca?capW(marca):'');modelo=modelo?capW(modelo):'';
+ return{marca,modelo,anio:/^\d{4}$/.test(anio)?+anio:null}};
+const statBars=(rows,f=x=>x)=>{const mx=Math.max(1,...rows.map(r=>r[1]));return rows.length?rows.map(([n,c])=>`<div style="margin:.45em 0"><div style="display:flex;justify-content:space-between;gap:.6em"><span>${esc(n)}</span><b>${f(c)}</b></div><div style="background:var(--bd);border-radius:99px;height:8px"><div style="width:${Math.max(4,Math.round(c/mx*100))}%;height:8px;border-radius:99px;background:var(--grad)"></div></div></div>`).join(''):'<div class="empty">Sin datos</div>'};
+const statBox=(n,l)=>`<div class="card" style="flex:1 1 130px;text-align:center;margin:.3em"><div style="font-size:1.7rem;font-weight:700">${n}</div><small>${l}</small></div>`;
+acts.stats=async id=>{loading();
+ const e=(await getDoc(doc(db,'eventos',id))).data(),ins=(await where1('inscripciones','eventoId',id)).filter(i=>i.estado!=='CANCELADO');
+ const cnt=(arr,f)=>{const m={};arr.forEach(x=>{const k=f(x);if(k)m[k]=(m[k]||0)+1});return Object.entries(m).sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0])))};
+ const V=ins.map(vehParse),n=ins.length,acr=ins.filter(i=>i.acreditado||i.estado==='ACREDITADO').length,pre=ins.filter(i=>i.estado==='PREINSCRIPTO').length,esp=ins.filter(i=>i.estado==='ESPERA').length,conf=ins.filter(i=>i.estado==='CONFIRMADO').length,soc=ins.filter(i=>i.tipoParticipante==='SOCIO').length;
+ const marcas=cnt(V,v=>v.marca),modelos=cnt(V,v=>v.marca?v.marca+' '+(v.modelo||'(sin modelo)'):''),decs=cnt(V,v=>v.anio?Math.floor(v.anio/10)*10+'s':'').sort((a,b)=>a[0].localeCompare(b[0]));
+ const conAnio=V.map((v,k)=>({v,k})).filter(x=>x.v.anio).sort((a,b)=>a.v.anio-b.v.anio),old=conAnio[0];
+ const sinVeh=V.filter(v=>!v.marca).length,base=acr+conf,pct=base?Math.round(acr/base*100):0;
+ main(`<button class="b l" data-a="ev" data-i="${id}">← ${esc(e.nombre)}</button><h2>📊 Estadísticas</h2><p><small>${esc(e.fecha||'')} · ${esc(e.lugar||'')} · sin contar cancelados</small></p>
+ <div style="display:flex;flex-wrap:wrap;margin:-.3em">${statBox(n,'Inscriptos')}${statBox(conf,'Confirmados')}${statBox(pre,'Pendientes')}${statBox(esp,'En espera')}${statBox(acr,'Acreditados')}${statBox(pct+'%','Asistencia')}</div>
+ <div style="display:flex;flex-wrap:wrap;margin:-.3em">${statBox(soc,'Socios')}${statBox(n-soc,'Invitados')}${statBox(marcas.length,'Marcas')}${statBox(modelos.length,'Modelos')}${old?statBox(old.v.anio,'Auto más antiguo<br>'+esc(old.v.marca+' '+old.v.modelo)):''}</div>
+ <div class="card"><h3>🚗 Autos por marca</h3>${statBars(marcas)}</div>
+ <div class="card"><h3>🔧 Autos por modelo</h3>${statBars(modelos.slice(0,20))}${modelos.length>20?`<small>Top 20 de ${modelos.length} modelos</small>`:''}</div>
+ <div class="card"><h3>📆 Por década</h3>${statBars(decs)}</div>
+ ${sinVeh?`<p><small>${sinVeh} inscripto(s) sin vehículo cargado.</small></p>`:''}`)};
+
+
+
+/* ==== UBICACIÓN DEL EVENTO (MAPA) ==== */
+const ll=e=>!!e&&e.lat!=null&&e.lat!==''&&e.lng!=null&&e.lng!==''&&!isNaN(+e.lat)&&!isNaN(+e.lng);
+const mapsUrl=e=>'https://www.google.com/maps?q='+(+e.lat).toFixed(6)+','+(+e.lng).toFixed(6);
+const locTxt=e=>ll(e)?`\n\n📍 Ubicación exacta:\n${mapsUrl(e)}\n(${(+e.lat).toFixed(6)}, ${(+e.lng).toFixed(6)})`:'';
+let _lf;const loadLeaflet=()=>window.L?Promise.resolve():(_lf||(_lf=new Promise((ok,no)=>{const l=document.createElement('link');l.rel='stylesheet';l.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';document.head.append(l);const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';sc.onload=ok;sc.onerror=()=>{_lf=null;no(new Error('offline'))};document.head.append(sc)})));
+acts.mapa=async id=>{const e=(await getDoc(doc(db,'eventos',id))).data(),ed=staff();
+ modal(`<h3>📍 ${esc(e.nombre)}</h3>${ed?`<div style="display:flex;gap:.4em"><input id="mq" placeholder="Buscar dirección o lugar" value="${esc(e.lugar||'')}" style="flex:1"><button class="b" data-a="mbus">🔎</button></div>`:''}<div id="mp" style="height:320px;border-radius:12px;background:var(--bd);margin:.5em 0"></div><div id="mc" style="margin-bottom:.5em"></div><div class="grid">${ed?'<button class="b l" data-a="mgps">📡 Mi ubicación</button><button class="b" data-a="msave">💾 Guardar</button>':''}<button class="b l" data-a="mwa">📲 Compartir WhatsApp</button><button class="b l" data-a="mcopy">📋 Copiar coordenadas</button><button class="b l" data-a="mopen">🧭 Abrir en Google Maps</button>${ed&&ll(e)?'<button class="b g" data-a="mdel">🗑️ Quitar ubicación</button>':''}</div><button class="b l big" data-a="cm">Cerrar</button>`);
+ try{await loadLeaflet()}catch{$('#mp').innerHTML='<div class="empty">Se necesita internet para ver el mapa</div>';return}
+ const has=ll(e),c=has?[+e.lat,+e.lng]:[-31.6773,-63.8847],map=L.map('mp').setView(c,has?16:13);
+ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+ const ic=L.divIcon({html:'<div style="font-size:32px;line-height:32px;transform:translate(-50%,-100%)">📍</div>',className:'',iconSize:[0,0]});
+ const M={map,id,e,mk:null};window._mp=M;
+ const txt=()=>{const p=M.mk&&M.mk.getLatLng();$('#mc').innerHTML=p?`<b>${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</b>`:`<small>${ed?'Tocá el mapa para marcar el punto exacto':'Ubicación no cargada'}</small>`};
+ M.put=(lat,lng)=>{if(!M.mk){M.mk=L.marker([lat,lng],{icon:ic,draggable:ed}).addTo(map);M.mk.on('dragend',txt)}else M.mk.setLatLng([lat,lng]);txt()};
+ if(has)M.put(c[0],c[1]);else txt();
+ if(ed)map.on('click',x=>M.put(x.latlng.lat,x.latlng.lng));
+ setTimeout(()=>map.invalidateSize(),200)};
+const mpos=()=>{const M=window._mp,p=M&&M.mk&&M.mk.getLatLng();if(!p)toast('Primero marcá un punto en el mapa');return p};
+acts.mbus=async()=>{const q=$('#mq').value.trim();if(!q)return;try{const r=await(await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q))).json();if(!r[0])return toast('No se encontró. Probá con otra dirección o tocá el mapa');const M=window._mp;M.put(+r[0].lat,+r[0].lon);M.map.setView([+r[0].lat,+r[0].lon],17)}catch{toast('No se pudo buscar (revisá la conexión)')}};
+acts.mgps=()=>{if(!navigator.geolocation)return toast('Tu dispositivo no permite ubicación');navigator.geolocation.getCurrentPosition(p=>{const M=window._mp;M.put(p.coords.latitude,p.coords.longitude);M.map.setView([p.coords.latitude,p.coords.longitude],18)},()=>toast('No se pudo obtener la ubicación (permití el acceso)'),{enableHighAccuracy:true,timeout:15000})};
+acts.msave=async()=>{const p=mpos();if(!p)return;const M=window._mp;await updateDoc(doc(db,'eventos',M.id),{lat:+p.lat.toFixed(6),lng:+p.lng.toFixed(6),updatedAt:serverTimestamp()});log('cambio','eventos',M.id);toast('Ubicación guardada');closeM();acts.ev(M.id)};
+acts.mdel=async()=>{if(!confirm('¿Quitar la ubicación del evento?'))return;const M=window._mp;await updateDoc(doc(db,'eventos',M.id),{lat:null,lng:null,updatedAt:serverTimestamp()});log('cambio','eventos',M.id);toast('Ubicación quitada');closeM();acts.ev(M.id)};
+acts.mwa=()=>{const p=mpos();if(!p)return;const e=window._mp.e,x={lat:p.lat,lng:p.lng};waGo('',`🚗 *${e.nombre}*\n📅 ${[e.fecha,e.hora].filter(Boolean).join(' ')}\n${e.lugar?'🏁 '+e.lugar:''}${locTxt(x)}`)};
+acts.mcopy=async()=>{const p=mpos();if(!p)return;await navigator.clipboard.writeText(p.lat.toFixed(6)+', '+p.lng.toFixed(6));toast('Coordenadas copiadas')};
+acts.mopen=()=>{const p=mpos();if(!p)return;window.open(mapsUrl({lat:p.lat,lng:p.lng}),'_blank')};
+
+
+/* ==== SEGUIMIENTO EN VIVO ==== */
+const hav=(a,b,c,d)=>{const r=x=>x*Math.PI/180,dl=r(c-a),dn=r(d-b),h=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;return 12742*Math.asin(Math.sqrt(h))};
+acts.lvgo=async k=>{const[t,ev]=k.split('|');if(!navigator.geolocation)return toast('Tu dispositivo no permite ubicación');if(window._lvp)return;
+ const i=(await getDoc(doc(db,'inscripciones',t))).data();let last=0;const P=window._lvp={t,w:null,wl:null};
+ const send=async p=>{const now=Date.now();if(now-last<30000)return;last=now;
+  try{await setDoc(doc(db,'ubicaciones',t),{eventoId:ev,nombre:i.nombre,vehiculo:i.vehiculo||'',lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy||0),ts:serverTimestamp()});$('#lvst').textContent='🟢 Compartiendo · '+new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+  catch(e){$('#lvst').textContent='❌ No se pudo enviar ('+(e.code||'error')+'). El seguimiento puede estar desactivado.'}};
+ P.w=navigator.geolocation.watchPosition(send,e=>{$('#lvst').textContent='❌ '+(e.code===1?'Permiso de ubicación denegado':'No se pudo obtener la ubicación')},{enableHighAccuracy:true,maximumAge:10000,timeout:30000});
+ try{P.wl=await navigator.wakeLock.request('screen')}catch{}
+ $('#lvbtn').textContent='⏹ DEJAR DE COMPARTIR';$('#lvbtn').dataset.a='lvstop';$('#lvst').textContent='Buscando señal GPS…'};
+acts.lvstop=async()=>{const P=window._lvp;if(!P)return;navigator.geolocation.clearWatch(P.w);try{P.wl&&P.wl.release()}catch{}try{await deleteDoc(doc(db,'ubicaciones',P.t))}catch{}window._lvp=null;
+ $('#lvbtn').textContent='📡 COMPARTIR MI UBICACIÓN';$('#lvbtn').dataset.a='lvgo';$('#lvst').textContent='Dejaste de compartir'};
+
+acts.live=async id=>{loading();const e=(await getDoc(doc(db,'eventos',id))).data();
+ main(`<button class="b l" data-a="liveoff" data-i="${id}">← ${esc(e.nombre)}</button><h2>📡 Seguimiento en vivo</h2><div id="lvs"></div><div id="lvm" style="height:55vh;min-height:300px;border-radius:12px;background:var(--bd);margin:.6em 0"></div><div id="lvl"></div>`);
+ const S=window._lv={e,id,rows:[],mk:{},stop:()=>{}};
+ S.ren=()=>{$('#lvs').innerHTML=`<p>${S.e.seguimiento?'🟢 <b>ACTIVO</b>: los participantes confirmados pueden compartir su ubicación desde su enlace.':'🔴 <b>Desactivado</b>: nadie puede compartir ubicación.'}</p><button class="b ${S.e.seguimiento?'g':''}" data-a="livetog">${S.e.seguimiento?'DESACTIVAR':'ACTIVAR SEGUIMIENTO'}</button><button class="b g" data-a="livecl">🧹 Finalizar y borrar ubicaciones</button>`};
+ S.ren();
+ try{await loadLeaflet()}catch{$('#lvm').innerHTML='<div class="empty">Se necesita internet para ver el mapa</div>';return}
+ const has=ll(e),map=L.map('lvm').setView(has?[+e.lat,+e.lng]:[-31.6773,-63.8847],has?13:12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);S.map=map;
+ if(has)L.marker([+e.lat,+e.lng],{icon:L.divIcon({html:'<div style="font-size:32px;line-height:32px;transform:translate(-50%,-100%)">🏁</div>',className:'',iconSize:[0,0]})}).addTo(map);
+ setTimeout(()=>map.invalidateSize(),200);
+ const ago=ms=>{const s=Math.round((Date.now()-ms)/1000);return s<90?s+' s':Math.round(s/60)+' min'};
+ S.draw=()=>{const rs=S.rows.map(r=>({...r,ms:r.ts&&r.ts.toMillis?r.ts.toMillis():Date.now(),km:has?hav(r.lat,r.lng,+e.lat,+e.lng):null})).sort((a,b)=>(a.km??0)-(b.km??0));
+  $('#lvl').innerHTML=`<div class="card"><b>${rs.length} compartiendo</b>${rs.map(r=>`<div style="padding:.4em 0;border-bottom:1px solid var(--bd);${Date.now()-r.ms>180000?'opacity:.5':''}"><b>${esc(r.nombre)}</b> <small>${esc(r.vehiculo||'')}</small><br><small>${r.km!=null?(r.km<1?Math.round(r.km*1000)+' m':r.km.toFixed(1)+' km')+' del evento · ':''}hace ${ago(r.ms)}</small></div>`).join('')||'<div class="empty">Todavía nadie comparte su ubicación</div>'}</div>`};
+ let first=true;
+ const unsub=onSnapshot(query(collection(db,'ubicaciones'),where('eventoId','==',id)),sn=>{
+  S.rows=sn.docs.map(d=>({id:d.id,...d.data()}));const seen=new Set();
+  S.rows.forEach(r=>{seen.add(r.id);const p=[r.lat,r.lng];if(S.mk[r.id])S.mk[r.id].setLatLng(p);else S.mk[r.id]=L.marker(p,{icon:L.divIcon({html:`<div style="transform:translate(-50%,-100%);white-space:nowrap;background:var(--ac);color:#fff;border-radius:99px;padding:2px 8px;font-size:12px">🚗 ${esc(String(r.nombre||'').split(' ')[0])}</div>`,className:'',iconSize:[0,0]})}).addTo(map)});
+  Object.keys(S.mk).forEach(k=>{if(!seen.has(k)){map.removeLayer(S.mk[k]);delete S.mk[k]}});
+  if(first&&S.rows.length){first=false;const pts=S.rows.map(r=>[r.lat,r.lng]);if(has)pts.push([+e.lat,+e.lng]);map.fitBounds(pts,{padding:[40,40],maxZoom:16})}
+  S.draw()},er=>{$('#lvl').innerHTML='<div class="empty">Error: '+esc(er.code||er.message)+' — revisá las reglas de Firestore (ubicaciones)</div>'});
+ const iv=setInterval(()=>S.draw&&S.draw(),15000);S.stop=()=>{unsub();clearInterval(iv)};S.draw()};
+acts.liveoff=id=>{if(window._lv){try{window._lv.stop()}catch{}window._lv=null}acts.ev(id)};
+acts.livetog=async()=>{const S=window._lv,v=!S.e.seguimiento;await updateDoc(doc(db,'eventos',S.id),{seguimiento:v,updatedAt:serverTimestamp()});S.e.seguimiento=v;log('cambio','eventos',S.id);S.ren()};
+acts.livecl=async()=>{const S=window._lv;if(!confirm('¿Desactivar el seguimiento y borrar todas las ubicaciones de este evento?'))return;
+ await updateDoc(doc(db,'eventos',S.id),{seguimiento:false,updatedAt:serverTimestamp()});S.e.seguimiento=false;
+ for(const r of await where1('ubicaciones','eventoId',S.id))await deleteDoc(doc(db,'ubicaciones',r.id));log('baja','ubicaciones','evento '+S.id);S.ren();toast('Ubicaciones borradas')};
+
+
+/* ==== COBRO INSCRIPCIÓN / RECIBOS / IMPORTAR / PAPELERA / FOTOS ==== */
+const shrink=(f,mx=640)=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>{const k=Math.min(1,mx/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.55))};im.onerror=no;im.src=URL.createObjectURL(f)});
+acts.cobi=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data(),e=(await getDoc(doc(db,'eventos',i.eventoId))).data();if(!+e.arancel)return;if(!confirm('¿Cobrar '+money(e.arancel)+' a '+i.nombre+'?'))return;
+ try{await addDoc(collection(db,'ingresos'),{fecha:today(),categoria:'Eventos',concepto:'Inscripción '+e.nombre+' — '+i.nombre,importe:+e.arancel,createdAt:serverTimestamp(),updatedAt:serverTimestamp()})}catch{return toast('Tu rol no puede registrar ingresos')}
+ await updateDoc(r,{pagado:true,fechaPago:today(),updatedAt:serverTimestamp()});log('cobro','inscripciones',t);acts.ev(i.eventoId)};
+acts.recibo=async id=>{const w=window.open('','_blank');if(!w)return toast('Permití ventanas emergentes');const c=(await getDoc(doc(db,'cuotas',id))).data(),n='R-'+id.slice(0,6).toUpperCase();
+ w.document.write(`<!doctype html><meta charset="utf-8"><title>Recibo ${n}</title><style>body{font-family:Arial,sans-serif;margin:32px;max-width:560px}.r{border:2px solid #7a1426;padding:22px;border-radius:12px}h2{color:#7a1426;margin:0 0 6px}td{padding:5px 10px}@media print{button{display:none}}</style><button onclick="print()">🖨️ Imprimir / Guardar PDF</button><div class="r"><h2>AUTOS CLÁSICOS PILAR</h2><b>RECIBO ${n}</b><table><tr><td>Fecha de pago</td><td>${esc(c.fechaPago||today())}</td></tr><tr><td>Socio</td><td>${esc(c.socio)}</td></tr><tr><td>Concepto</td><td>Cuota ${esc(c.periodo)}</td></tr><tr><td>Medio</td><td>${esc(c.medio||'-')}</td></tr><tr><td><b>Importe</b></td><td><b>${money(c.importe)}</b></td></tr></table><p>Recibimos conforme el pago indicado. ¡Gracias!</p></div>`);w.document.close()};
+acts.imps=()=>modal(`<h3>📥 Importar socios (CSV)</h3><p><small>Primera fila con títulos: numero;nombre;apellido;dni;telefono;email;categoria;estado. Separador ; o ,. Se omiten nº repetidos.</small></p><input type="file" id="fcsv" accept=".csv,.txt"><button class="b big" data-a="impsgo">Importar</button><button class="b l" data-a="cm">Cancelar</button>`);
+acts.impsgo=async()=>{const f=$('#fcsv').files[0];if(!f)return toast('Elegí un archivo');const ls=(await f.text()).replace(/^\ufeff/,'').split(/\r?\n/).filter(x=>x.trim());if(ls.length<2)return toast('Archivo vacío');
+ const sep=ls[0].includes(';')?';':',',sp=l=>l.split(sep).map(x=>x.trim().replace(/^"|"$/g,'')),H=sp(ls[0]).map(h=>h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')),K=['numero','nombre','apellido','dni','telefono','email','categoria','estado'],have=new Set((await all('socios')).map(x=>String(x.numero)));let ok=0,sk=0;
+ for(const l of ls.slice(1)){const v=sp(l),o={};H.forEach((h,k)=>{if(K.includes(h))o[h]=v[k]||''});
+  if(!o.nombre||!o.apellido||(o.numero&&have.has(String(o.numero)))){sk++;continue}o.estado=(o.estado||'ACTIVO').toUpperCase();if(!['ACTIVO','SUSPENDIDO','BAJA'].includes(o.estado))o.estado='ACTIVO';
+  await addDoc(collection(db,'socios'),{...o,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});if(o.numero)have.add(String(o.numero));ok++}
+ log('alta','socios','import csv '+ok);closeM();toast(ok+' importados · '+sk+' omitidos');go('socios')};
+async function papView(){loading();const r=(await all('papelera').catch(()=>[])).sort((a,b)=>(b.fecha?.seconds||0)-(a.fecha?.seconds||0));
+ main(`<h2>🗑️ Papelera <small>(${r.length})</small></h2><div class="card wrap">${r.map(x=>`<div style="padding:.5em 0;border-bottom:1px solid var(--bd)"><b>${esc(x.col)}</b> · ${esc(x.data?.nombre||x.data?.titulo||x.data?.concepto||x.data?.socio||x.docId)}<br><small>${x.fecha?.seconds?new Date(x.fecha.seconds*1000).toLocaleDateString('es-AR'):''} · ${esc(x.borradoPor||'')}</small><br><button class="b" data-a="prest" data-i="${x.id}">♻️ Restaurar</button><button class="b g" data-a="pdel" data-i="${x.id}">Borrar para siempre</button></div>`).join('')||'<div class="empty">Papelera vacía</div>'}</div>`)}
+VIEWS.papelera=['Papelera',papView];
+acts.prest=async id=>{const x=(await getDoc(doc(db,'papelera',id))).data();await setDoc(doc(db,x.col,x.docId),x.data);await deleteDoc(doc(db,'papelera',id));log('restaurar',x.col,x.docId);toast('Restaurado');papView()};
+acts.pdel=async id=>{if(!confirm('¿Borrar para siempre?'))return;await deleteDoc(doc(db,'papelera',id));papView()};
+
+/* ==== AVISOS WHATSAPP / EXPORTAR / CLUB / RESPALDO / DIAGNÓSTICO ==== */
+const waGo=(n,m)=>window.open('https://wa.me/'+n+'?text='+encodeURIComponent(m),'_blank');
+const waTel=async i=>{let tel=i.whatsapp||i.telefono||'';if(!tel)try{const p=(await getDoc(doc(db,i.tipoParticipante==='SOCIO'?'socios':'participantes',i.participanteId))).data()||{};tel=p.whatsapp||p.telefono||''}catch{}return waNorm(tel)};
+acts.avisar=t=>modal(`<h3>💬 Avisar por WhatsApp</h3><button class="b big" data-a="av" data-i="${t}|cambio">📣 Aviso de cambio (fecha / lugar)</button><button class="b l big" data-a="av" data-i="${t}|recordatorio">⏰ Recordatorio + QR</button><button class="b l big" data-a="av" data-i="${t}|espera">⏳ Quedó en lista de espera</button><button class="b g big" data-a="av" data-i="${t}|rechazo">🚫 No se pudo confirmar</button><button class="b l" data-a="cm">Cerrar</button>`);
+acts.av=async k=>{const[t,tipo]=k.split('|');const i=(await getDoc(doc(db,'inscripciones',t))).data(),e=(await getDoc(doc(db,'eventos',i.eventoId))).data()||{};
+ const n=await waTel(i);if(!n)return toast(WA_ERR);
+ const nom=i.nombre.split(' ')[0],ev=i.eventoNombre,cuando=[e.fecha,e.hora].filter(Boolean).join(' '),firma='\n\n— Autos Clásicos Pilar';let m;
+ if(tipo==='cambio'){const x=prompt('¿Qué cambió? (ej: nueva hora 16:00)','');if(x===null)return;m=`Hola ${nom} 👋\n\nNovedades sobre *${ev}*:\n${x?x+'\n\n':''}Datos actualizados:\n📅 ${cuando}\n📍 ${e.lugar||'-'}\n\nCualquier duda escribinos.${locTxt(e)}`+firma}
+ else if(tipo==='recordatorio')m=`Hola ${nom} 👋\n\nTe esperamos en *${ev}*\n📅 ${cuando}\n📍 ${e.lugar||'-'}${locTxt(e)}\n\nTu QR de acceso:\n${linkOf(t)}${e.seguimiento?'\n\n📡 Ese día entrá a este enlace y tocá *Compartir mi ubicación* para que la organización te vea llegar.':''}`+firma;
+ else if(tipo==='espera')m=`Hola ${nom} 👋\n\nEl cupo de *${ev}* está completo y quedaste en *lista de espera*. Si se libera un lugar te avisamos por acá.`+firma;
+ else{const x=prompt('Motivo (opcional)','');if(x===null)return;m=`Hola ${nom} 👋\n\nLamentablemente no pudimos confirmar tu inscripción a *${ev}*.${x?'\nMotivo: '+x:''}\n\nGracias por tu interés, ¡esperamos verte en el próximo!`+firma}
+ closeM();waGo(n,m)};
+
+const exRows=async id=>{const e=(await getDoc(doc(db,'eventos',id))).data(),ins=(await where1('inscripciones','eventoId',id)).filter(i=>i.estado!=='CANCELADO');const rows=ins.map(i=>({i,v:vehParse(i)}));rows.sort((a,b)=>String(a.i.nombre).localeCompare(String(b.i.nombre),'es'));return{e,rows}};
+acts.exlist=id=>modal(`<h3>📄 Exportar lista</h3><button class="b big" data-a="expdf" data-i="${id}">🖨️ PDF / Imprimir (confirmados)</button><button class="b l big" data-a="excsv" data-i="${id}">📊 Excel (CSV, todos)</button><button class="b l" data-a="cm">Cerrar</button>`);
+acts.expdf=async id=>{const w=window.open('','_blank');if(!w)return toast('El navegador bloqueó la ventana: permití ventanas emergentes');w.document.write('<p>Cargando…</p>');
+ const{e,rows}=await exRows(id),ok=rows.filter(r=>['CONFIRMADO','ACREDITADO'].includes(r.i.estado));
+ w.document.open();w.document.write(`<!doctype html><meta charset="utf-8"><title>Lista ${esc(e.nombre)}</title><style>body{font-family:Arial,sans-serif;margin:24px}h1{margin:.4em 0 0}table{border-collapse:collapse;width:100%;margin-top:14px;font-size:13px}th,td{border:1px solid #444;padding:5px 7px;text-align:left}th{background:#eee}.c{width:30px;text-align:center}@media print{button{display:none}}</style><button onclick="print()">🖨️ Imprimir / Guardar como PDF</button><h1>${esc(e.nombre)}</h1><div>${esc(e.fecha||'')} ${esc(e.hora||'')} · ${esc(e.lugar||'')}</div><div>Confirmados: <b>${ok.length}</b>${e.cupo?' / cupo '+esc(e.cupo):''}</div><table><tr><th>#</th><th>Nombre</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Año</th><th>Teléfono</th><th>Estado</th><th class="c">✔</th></tr>${ok.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.i.nombre)}</td><td>${esc(r.i.tipoParticipante||'')}</td><td>${esc(r.v.marca)}</td><td>${esc(r.v.modelo)}</td><td>${r.v.anio||''}</td><td>${esc(r.i.whatsapp||r.i.telefono||'')}</td><td>${esc(r.i.estado)}</td><td class="c">${r.i.acreditado?'✔':''}</td></tr>`).join('')}</table>`);w.document.close();closeM()};
+acts.excsv=async id=>{const{e,rows}=await exRows(id);const H=['Nombre','Tipo','Marca','Modelo','Año','DNI','WhatsApp','Email','Estado','Acreditado'],q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+ dlf('lista-'+(e.nombre||'evento').replace(/[^\w\-]+/g,'_')+'.csv','\ufeff'+[H.join(';'),...rows.map(r=>[r.i.nombre,r.i.tipoParticipante,r.v.marca,r.v.modelo,r.v.anio||'',r.i.dni||'',r.i.whatsapp||r.i.telefono||'',r.i.email||'',r.i.estado,r.i.acreditado?'SI':'NO'].map(q).join(';'))].join('\n'),'text/csv');closeM();toast('Lista exportada')};
+
+async function clubView(){loading();
+ const g=c=>all(c).catch(()=>null),[so,cu,ing,egr,ve]=await Promise.all([g('socios'),g('cuotas'),g('ingresos'),g('egresos'),g('vehiculos')]);
+ const hoy=today(),sum=a=>a.reduce((s,x)=>s+(+x.importe||0),0),row=h=>`<div style="display:flex;flex-wrap:wrap;margin:-.3em">${h}</div>`;
+ const cnt=(arr,f)=>{const m={};arr.forEach(x=>{const k=f(x);if(k)m[k]=(m[k]||0)+1});return Object.entries(m).sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0])))};
+ let h='<h2>📈 Estadísticas del club</h2>';
+ if(so)h+=row(statBox(so.length,'Socios')+statBox(so.filter(x=>x.estado==='ACTIVO').length,'Activos')+statBox(so.filter(x=>x.estado==='SUSPENDIDO').length,'Suspendidos')+statBox(so.filter(x=>x.estado==='BAJA').length,'Bajas'));
+ if(cu){const venc=x=>x.estado!=='PAGADA'&&(x.estado==='VENCIDA'||(x.vencimiento&&x.vencimiento<hoy)),pag=cu.filter(x=>x.estado==='PAGADA'),ven=cu.filter(venc),pen=cu.filter(x=>x.estado!=='PAGADA'&&!venc(x));
+  const per=[...new Set(cu.map(x=>x.periodo).filter(Boolean))].sort().pop(),cp=per?cu.filter(x=>x.periodo===per):[],cob=cp.length?Math.round(cp.filter(x=>x.estado==='PAGADA').length/cp.length*100):0;
+  h+='<h3>💳 Cuotas</h3>'+row(statBox(pag.length,'Pagadas')+statBox(pen.length,'Pendientes')+statBox(ven.length,'Vencidas')+statBox(money(sum(ven)),'Adeudado')+(per?statBox(cob+'%','Cobranza '+esc(per)):''));
+  const gm={};ven.forEach(x=>{(gm[x.socio||'?']??=[]).push(x)});
+  const mor=Object.entries(gm).map(([k,a])=>{const s=so&&(so.find(z=>z.numero+' '+z.apellido===k)||so.find(z=>k.startsWith(z.numero+' ')));return{k,a:a.sort((p,q)=>String(p.periodo).localeCompare(String(q.periodo))),t:sum(a),s,tel:waNorm(s?.telefono||s?.whatsapp)}}).sort((p,q)=>q.t-p.t);
+  window._mor=mor;
+  h+=`<div class="card"><h3>⚠️ Socios con cuotas vencidas (${mor.length})</h3>${mor.slice(0,60).map((m,k)=>`<div style="padding:.5em 0;border-bottom:1px solid var(--bd)"><b>${esc(m.k)}</b><br><small>${m.a.map(c=>esc(c.periodo)).join(', ')} · ${money(m.t)}</small><br>${m.tel?`<button class="b" data-a="mor" data-i="${k}">💬 Avisar por WhatsApp</button>`:'<small>Sin teléfono válido cargado</small>'}</div>`).join('')||'<div class="empty">Sin deuda vencida 🎉</div>'}</div>`}
+ else h+='<p><small>Cuotas: tu rol no tiene acceso.</small></p>';
+ if(ing&&egr){const mm=a=>{const m={};a.forEach(x=>{const k=(x.fecha||'').slice(0,7);if(k)m[k]=(m[k]||0)+(+x.importe||0)});return m},mI=mm(ing),mE=mm(egr),ks=[...new Set([...Object.keys(mI),...Object.keys(mE)])].sort().slice(-6);
+  h+='<h3>💰 Finanzas</h3>'+row(statBox(money(sum(ing)),'Ingresos')+statBox(money(sum(egr)),'Egresos')+statBox(money(sum(ing)-sum(egr)),'Saldo'))+`<div class="card"><b>Ingresos por mes</b>${statBars(ks.map(k=>[k,mI[k]||0]),money)}</div><div class="card"><b>Egresos por mes</b>${statBars(ks.map(k=>[k,mE[k]||0]),money)}</div>`}
+ if(ve){const V=ve.map(vehParse);h+='<h3>🚗 Vehículos del club</h3>'+row(statBox(ve.length,'Vehículos')+statBox(cnt(V,v=>v.marca).length,'Marcas'))+`<div class="card"><b>Por marca</b>${statBars(cnt(V,v=>v.marca).slice(0,15))}</div><div class="card"><b>Por década</b>${statBars(cnt(V,v=>v.anio?Math.floor(v.anio/10)*10+'s':'').sort((a,b)=>a[0].localeCompare(b[0])))}</div>`}
+ const[evs,ins]=await Promise.all([g('eventos'),g('inscripciones')]);
+ if(evs&&ins){const ye={};evs.forEach(e=>{const y=(e.fecha||'').slice(0,4);if(y)ye[e.id]=y});const by={};
+  ins.filter(i=>i.estado!=='CANCELADO'&&ye[i.eventoId]).forEach(i=>{const y=ye[i.eventoId],o=by[y]??={n:0,a:0,s:0,k:new Set(),m:{}};o.n++;if(i.acreditado||i.estado==='ACREDITADO')o.a++;if(i.tipoParticipante==='SOCIO')o.s++;o.k.add(i.tipoParticipante==='SOCIO'?i.participanteId:(i.dni||i.participanteId));const mk=vehParse(i).marca;if(mk)o.m[mk]=(o.m[mk]||0)+1});
+  const ys=Object.keys(by).sort();if(ys.length)h+=`<h3>📆 Comparación por año</h3><div class="card wrap"><table><tr><th>Año</th><th>Inscriptos</th><th>Acreditados</th><th>Socios</th><th>Repiten</th><th>Marca #1</th></tr>${ys.map((y,k)=>{const o=by[y],pv=k?by[ys[k-1]].k:null,top=Object.entries(o.m).sort((a,b)=>b[1]-a[1])[0];return`<tr><td>${y}</td><td>${o.n}</td><td>${o.a}</td><td>${o.s}</td><td>${pv?[...o.k].filter(x=>pv.has(x)).length:'-'}</td><td>${top?esc(top[0]):'-'}</td></tr>`}).join('')}</table></div><p><small>"Repiten" cuenta socios y invitados con el mismo DNI en el año anterior.</small></p>`}
+ main(h)}
+VIEWS.club=['Estadísticas',clubView];
+acts.mor=k=>{const m=(window._mor||[])[+k];if(!m||!m.tel)return toast(WA_ERR);const nom=(m.s?.nombre||'').split(' ')[0]||'socio';
+ waGo(m.tel,`Hola ${nom} 👋\n\nTe escribimos del *Club Autos Clásicos Pilar*. Figuran cuotas pendientes:\n${m.a.map(c=>'• '+c.periodo+' — '+money(c.importe)).join('\n')}\n\nTotal: *${money(m.t)}*\n\nCuando abones avisanos por acá y te registramos el pago. ¡Gracias!`)};
+
+const backupCheck=()=>{if(role!=='ADMIN'||window._bk)return;window._bk=1;let l=0;try{l=+localStorage.getItem('acp-lastbackup')||0}catch{}const d=l?Math.floor((Date.now()-l)/864e5):999;
+ if(d>=7)setTimeout(()=>{if(confirm((l?'Hace '+d+' días que no hacés un respaldo.':'Todavía no hiciste ningún respaldo.')+' ¿Descargarlo ahora?'))acts.exp()},2500)};
+const rulesCheck=()=>{if(!window._rulesErr||$('#rb'))return;const d=document.createElement('div');d.id='rb';d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:90;background:#b91c1c;color:#fff;padding:.6em 1em;text-align:center;font-size:.9rem';
+ d.innerHTML='⚠️ Firestore bloqueó la lectura de tu rol ('+esc(window._rulesErr)+'). Revisá las reglas en Firebase → Firestore → Reglas. <button onclick="this.parentNode.remove()" style="margin-left:.6em;min-height:0;padding:.1em .6em">✕</button>';document.body.append(d)};
+acts.diag=async()=>{const o=$('#dg'),R=[];o.innerHTML='Probando…';
+ const T=async(n,f)=>{try{await f();R.push('✅ '+n)}catch(e){R.push('❌ '+n+' — '+(e.code||e.message))}};
+ await T('Leer mi rol',async()=>{const s=await getDoc(doc(db,'users',me.uid));if(!s.exists())throw{code:'no existe users/'+me.uid};if(s.data().role!==role)throw{code:'el rol guardado es '+s.data().role}});
+ for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
+ await T('Link público (sin login): leer evento',async()=>{const ev=(await getDocs(query(collection(db,'eventos'),limit(1)))).docs[0];if(!ev)throw{code:'no hay eventos cargados'};window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'eventos',ev.id))});
+ await T('Link público (sin login): leer inscripción',async()=>{window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'inscripciones','prueba-diagnostico'))});
+ let l=0;try{l=+localStorage.getItem('acp-lastbackup')||0}catch{}
+ o.innerHTML=R.map(esc).join('<br>')+'<p><small>Si ves ❌ permission-denied, revisá las reglas de Firestore. Último respaldo: '+(l?new Date(l).toLocaleDateString('es-AR'):'nunca')+'</small></p>'};
+
 /* ==== INSCRIPCIÓN PÚBLICA POR LINK ==== */
 const insLink=id=>location.origin+location.pathname+'#inscripcion='+id;
 acts.insl=async id=>{const e=(await getDoc(doc(db,'eventos',id))).data(),ab=!!e.inscripcionAbierta;
  modal(`<h3>Inscripción por link</h3><p>Estado: <b>${ab?'🟢 ABIERTA':'🔴 CERRADA'}</b></p><input readonly value="${insLink(id)}" onclick="this.select()"><div class="grid"><button class="b l" data-a="insc" data-i="${id}">COPIAR LINK</button><button class="b" data-a="insw" data-i="${id}">COMPARTIR WHATSAPP</button></div><button class="b ${ab?'g':''} big" data-a="inst" data-i="${id}|${ab?0:1}">${ab?'CERRAR INSCRIPCIÓN':'ABRIR INSCRIPCIÓN'}</button><p><small>Quienes se anoten quedan como PREINSCRIPTO hasta que los confirmes.</small></p><button class="b l big" data-a="cm">Cerrar</button>`)};
 acts.insc=async id=>{await navigator.clipboard.writeText(insLink(id));toast('Link copiado')};
-acts.insw=async id=>{const e=(await getDoc(doc(db,'eventos',id))).data();window.open('https://wa.me/?text='+encodeURIComponent(`🚗 Inscripción abierta: ${e.nombre}\n${e.fecha||''} ${e.hora||''} · ${e.lugar||''}\n\nAnotate acá:\n${insLink(id)}`),'_blank')};
+acts.insw=async id=>{const e=(await getDoc(doc(db,'eventos',id))).data();window.open('https://wa.me/?text='+encodeURIComponent(`🚗 Inscripción abierta: ${e.nombre}\n${e.fecha||''} ${e.hora||''} · ${e.lugar||''}\n\nAnotate acá:\n${insLink(id)}${locTxt(e)}`),'_blank')};
 acts.inst=async k=>{const[id,v]=k.split('|');await updateDoc(doc(db,'eventos',id),{inscripcionAbierta:v==='1',updatedAt:serverTimestamp()});acts.insl(id)};
 async function insView(id){
  const P=$('#pub');P.classList.remove('hide');P.innerHTML='<div class="loader">Cargando…</div>';
  try{const prev=localStorage.getItem('ins-'+id);if(prev){location.hash='#acreditacion='+prev;return pubView(prev)}}catch{}
  try{const sn=await getDoc(doc(db,'eventos',id));if(!sn.exists())throw 0;const e=sn.data();
-  const head=`<div style="text-align:center"><img src="logo.png" alt="" style="max-width:130px;max-height:110px" onerror="this.remove()"><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha||'')} ${esc(e.hora||'')} · ${esc(e.lugar||'')}</p></div>`;
+  const head=`<div style="text-align:center"><img src="logo.png" alt="" style="max-width:130px;max-height:110px" onerror="this.remove()"><h2>${esc(e.nombre)}</h2><p>${esc(e.fecha||'')} ${esc(e.hora||'')} · ${esc(e.lugar||'')}</p>${ll(e)?`<p><a href="${mapsUrl(e)}" target="_blank" rel="noopener">📍 Cómo llegar</a></p>`:''}</div>`;
   if(e.estado!=='PUBLICADO'||!e.inscripcionAbierta){P.innerHTML=`<div class="card">${head}<div class="res warn">La inscripción está cerrada</div></div>`;return}
   const F=(n,l,t='text')=>`<label>${l}</label><input name="${n}" type="${t}" autocomplete="off">`;
-  P.innerHTML=`<div class="card">${head}<h3>Inscripción</h3>${F('nombre','Nombre *')}${F('apellido','Apellido *')}${F('dni','DNI *','tel')}${F('whatsapp','WhatsApp *','tel')}${F('email','Email (opcional)','email')}<label>¿Sos socio del club?</label><select name="esSocio"><option>NO</option><option>SI</option></select><h3>Vehículo</h3>${F('marca','Marca')}${F('modelo','Modelo')}${F('anio','Año','number')}<input name="web" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true"><button class="b big" data-a="insgo" data-i="${id}">INSCRIBIRME</button><p><small>Tu inscripción quedará pendiente hasta que la organización la confirme. Vas a recibir tu QR de acceso.</small></p></div>`;
+  P.innerHTML=`<div class="card">${head}<h3>Inscripción</h3>${F('nombre','Nombre *')}${F('apellido','Apellido *')}${F('dni','DNI *','tel')}${F('whatsapp','WhatsApp * (con código de área, sin 0 ni 15)','tel')}${F('email','Email (opcional)','email')}<label>¿Sos socio del club?</label><select name="esSocio"><option>NO</option><option>SI</option></select><h3>Vehículo</h3>${F('marca','Marca')}${F('modelo','Modelo')}${F('anio','Año','number')}<label>Foto del vehículo (opcional)</label><input name="foto" type="file" accept="image/*"><input name="web" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true"><button class="b big" data-a="insgo" data-i="${id}">INSCRIBIRME</button><p><small>Tu inscripción quedará pendiente hasta que la organización la confirme. Vas a recibir tu QR de acceso.</small></p></div>`;
  }catch(x){console.error('insView',x);P.innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'evento-no-existe')+'</small></p>'}
 }
 acts.insgo=async id=>{
@@ -555,10 +745,10 @@ acts.insgo=async id=>{
  if(d.web)return;
  if(!d.nombre||!d.apellido)return toast('Completá nombre y apellido');
  if(d.dni.replace(/\D/g,'').length<6)return toast('Revisá el DNI');
- if(d.whatsapp.replace(/\D/g,'').length<6)return toast('Revisá el WhatsApp');
+ const wn=waNorm(d.whatsapp);if(!wn)return toast(WA_ERR);d.whatsapp=wn;
  const b=document.querySelector('#pub .b.big');b.disabled=true;b.textContent='Enviando…';
- try{const e=(await getDoc(doc(db,'eventos',id))).data(),t=genToken();
-  await setDoc(doc(db,'inscripciones',t),{eventoId:id,eventoNombre:e.nombre,participanteId:t,tipoParticipante:'INVITADO',nombre:d.nombre+' '+d.apellido,vehiculo:[d.marca,d.modelo,d.anio].filter(Boolean).join(' '),dni:d.dni,telefono:d.whatsapp,whatsapp:d.whatsapp,email:d.email,esSocio:d.esSocio,origen:'WEB',fechaInscripcion:serverTimestamp(),estado:'PREINSCRIPTO',tokenQR:t,acreditado:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+ try{const e=(await getDoc(doc(db,'eventos',id))).data(),t=genToken();let foto='';const ff=document.querySelector('#pub [name=foto]')?.files?.[0];if(ff)try{foto=await shrink(ff)}catch{}
+  await setDoc(doc(db,'inscripciones',t),{foto,eventoId:id,eventoNombre:e.nombre,participanteId:t,tipoParticipante:'INVITADO',nombre:d.nombre+' '+d.apellido,vehiculo:[d.marca,d.modelo,d.anio].filter(Boolean).join(' '),marca:d.marca||'',modelo:d.modelo||'',anio:d.anio||'',dni:d.dni,telefono:d.whatsapp,whatsapp:d.whatsapp,email:d.email,esSocio:d.esSocio,origen:'WEB',fechaInscripcion:serverTimestamp(),estado:'PREINSCRIPTO',tokenQR:t,acreditado:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
   try{localStorage.setItem('ins-'+id,t)}catch{}
   location.hash='#acreditacion='+t;pubView(t);
  }catch(x){b.disabled=false;b.textContent='INSCRIBIRME';toast('No se pudo enviar. Revisá tu conexión e intentá de nuevo.')}
