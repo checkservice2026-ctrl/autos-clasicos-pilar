@@ -252,7 +252,7 @@ acts.psoc=async ev=>{const s=(await all('socios')).filter(x=>x.estado!=='BAJA');
   $('#sq').oninput=draw;draw()};
 acts.pick=async k=>{const[ev,sid]=k.split('|');const s=window._s.find(x=>x.id===sid);await inscribir(ev,sid,'SOCIO',s.nombre+' '+s.apellido,$('#sv').value.trim(),$('#se').value)};
 acts.pinv=ev=>modal(`<h3>Invitado</h3>${[['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['whatsapp','WhatsApp'],['email','Email'],['observaciones','Observaciones'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],['patente','Patente'],['estadoIns','Estado de inscripción','CONFIRMADO,PREINSCRIPTO']].map(f=>fld(f,'')).join('')}<button class="b" data-a="saveinv" data-i="${ev}">Inscribir</button>`);
-acts.saveinv=async ev=>{const d=formData();if(!d.nombre||!d.apellido)return toast('Nombre y apellido obligatorios');const wn=waNorm(d.whatsapp);if(!wn)return toast(WA_ERR);d.whatsapp=wn;const est=d.estadoIns;delete d.estadoIns;
+acts.saveinv=async ev=>{const d=formData();if(!d.nombre||!d.apellido)return toast('Nombre y apellido obligatorios');if(d.whatsapp&&d.whatsapp.trim()){const wn=waNorm(d.whatsapp);if(!wn)return toast(WA_ERR+' (o dejalo vacío)');d.whatsapp=wn}else d.whatsapp='';const est=d.estadoIns;delete d.estadoIns;
   const r=await addDoc(collection(db,'participantes'),{...d,tipo:'INVITADO',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
   await inscribir(ev,r.id,'INVITADO',d.nombre+' '+d.apellido,[d.marca,d.modelo,d.anio].filter(Boolean).join(' '),est,{marca:d.marca||'',modelo:d.modelo||'',anio:d.anio||''})};
 async function inscribir(ev,pid,tipo,nombre,vehiculo,est,extra={}){
