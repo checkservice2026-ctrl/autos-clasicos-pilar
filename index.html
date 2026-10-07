@@ -762,6 +762,18 @@ acts.ficha=async id=>{loading();const s=(await getDoc(doc(db,'socios',id))).data
  ${V.map(x=>`<div class="card" style="display:flex;gap:1em;align-items:center;flex-wrap:wrap">${x.patenteClub!=null&&x.patenteClub!==''?`<div class="plate"><small>MUNICIPALIDAD DE PILAR</small><b>${pc(x.patenteClub)}</b><small>AUTOS CLÁSICOS PILAR (Cba)</small></div>`:'<div class="plate no"><small>Sin patente<br>del club</small></div>'}<div style="flex:1;min-width:180px"><b>${esc([x.marca,x.modelo,x.version].filter(Boolean).join(' '))}</b>${x.anio?' · '+esc(x.anio):''}<br><small>${[x.patente&&'Dominio '+x.patente,x.color,x.condicion,x.estado].filter(Boolean).map(z=>esc(z)).join(' · ')}</small></div>${can('vehiculos')?`<button class="b l" data-a="edit" data-i="vehiculos|${x.id}">Editar</button>`:''}<button class="b l" data-a="fotos" data-i="vehiculos/${x.id}">Fotos</button></div>`).join('')||'<div class="empty">Todavía no tiene vehículos cargados</div>'}
  <div class="card"><b>Cuotas pendientes:</b> ${pend.length}<br><b>Eventos:</b> ${ins.filter(x=>x.estado!=='CANCELADO').map(x=>esc(x.eventoNombre)).join(', ')||'—'}</div>`)};
 
+
+/* ==== BUSCADOR DENTRO DEL EVENTO ==== */
+const nz=x=>String(x??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+async function evSearch(id){const t=document.querySelector('#main .card.wrap table');if(!t||$('#qi'))return;
+ const[ins,ve]=await Promise.all([where1('inscripciones','eventoId',id),all('vehiculos').catch(()=>[])]),M=new Map(ins.map(i=>[i.id,i])),bs={};
+ ve.forEach(v=>{(bs[v.socioId||'n'+v.socioNumero]??=[]).push(v)});
+ t.closest('.card').insertAdjacentHTML('beforebegin','<input id="qi" type="search" placeholder="🔎 Buscar persona, vehículo, patente, DNI o teléfono…" autocomplete="off" style="margin-top:.6em"><small id="qn"></small>');
+ [...t.rows].forEach(r=>{const b=r.querySelector('[data-a=rmenu]'),i=b&&M.get(b.dataset.i);if(!i)return;const vs=i.tipoParticipante==='SOCIO'?(bs[i.participanteId]||[]):[];
+  r.dataset.s=nz([i.nombre,i.vehiculo,i.marca,i.modelo,i.dni,i.whatsapp,i.telefono,i.estado,i.tipoParticipante,...vs.map(v=>[v.marca,v.modelo,v.patente,v.patenteClub!=null&&v.patenteClub!==''?pc(v.patenteClub)+' '+v.patenteClub:''].join(' '))].filter(Boolean).join(' '))});
+ $('#qi').oninput=()=>{const q=nz($('#qi').value.trim());let n=0;[...t.rows].forEach(r=>{if(!r.dataset.s)return;const ok=!q||q.split(/\s+/).every(w=>r.dataset.s.includes(w));r.classList.toggle('hide',!ok);if(ok)n++});$('#qn').textContent=q?n+' resultado'+(n===1?'':'s'):''}}
+{const ev0=acts.ev;acts.ev=async id=>{await ev0(id);try{await evSearch(id)}catch(e){console.error(e)}}}
+
 /* ==== MENÚS DESPLEGABLES ==== */
 acts.rmenu=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data(),e=(await getDoc(doc(db,'eventos',i.eventoId))).data()||{};
  const B=(a,l,c='l')=>`<button class="b ${c} big" data-a="rm" data-i="${t}|${a}">${l}</button>`;
@@ -803,9 +815,14 @@ acts.impsgo=async()=>{const f=$('#fcsv').files[0];if(!f)return toast('Elegí un 
   await addDoc(collection(db,'socios'),{...o,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});if(o.numero)have.add(String(o.numero));ok++}
  log('alta','socios','import csv '+ok);closeM();toast(ok+' importados · '+sk+' omitidos');go('socios')};
 async function papView(){loading();const r=(await all('papelera').catch(()=>[])).sort((a,b)=>(b.fecha?.seconds||0)-(a.fecha?.seconds||0));
- main(`<h2>🗑️ Papelera <small>(${r.length})</small></h2><div class="card wrap">${r.map(x=>`<div style="padding:.5em 0;border-bottom:1px solid var(--bd)"><b>${esc(x.col)}</b> · ${esc(x.data?.nombre||x.data?.titulo||x.data?.concepto||x.data?.socio||x.docId)}<br><small>${x.fecha?.seconds?new Date(x.fecha.seconds*1000).toLocaleDateString('es-AR'):''} · ${esc(x.borradoPor||'')}</small><br><button class="b" data-a="prest" data-i="${x.id}">♻️ Restaurar</button><button class="b g" data-a="pdel" data-i="${x.id}">Borrar para siempre</button></div>`).join('')||'<div class="empty">Papelera vacía</div>'}</div>`)}
+ main(`<h2>🗑️ Papelera <small>(${r.length})</small></h2>${r.length?'<button class="b g" data-a="pvac">🧹 VACIAR PAPELERA</button>':''}<div class="card wrap">${r.map(x=>`<div style="padding:.5em 0;border-bottom:1px solid var(--bd)"><b>${esc(x.col)}</b> · ${esc(x.data?.nombre||x.data?.titulo||x.data?.concepto||x.data?.socio||x.docId)}<br><small>${x.fecha?.seconds?new Date(x.fecha.seconds*1000).toLocaleDateString('es-AR'):''} · ${esc(x.borradoPor||'')}</small><br><button class="b" data-a="prest" data-i="${x.id}">♻️ Restaurar</button><button class="b g" data-a="pdel" data-i="${x.id}">Borrar para siempre</button></div>`).join('')||'<div class="empty">Papelera vacía</div>'}</div>`)}
 VIEWS.papelera=['Papelera',papView];
 acts.prest=async id=>{const x=(await getDoc(doc(db,'papelera',id))).data();await setDoc(doc(db,x.col,x.docId),x.data);await deleteDoc(doc(db,'papelera',id));log('restaurar',x.col,x.docId);toast('Restaurado');papView()};
+acts.pvac=async()=>{const r=await all('papelera');if(!r.length)return toast('La papelera ya está vacía');
+ if(!confirm('Vas a borrar PARA SIEMPRE '+r.length+' elemento'+(r.length>1?'s':'')+'. No se puede deshacer. ¿Continuar?'))return;
+ if((prompt('Para confirmar, escribí VACIAR')||'').trim().toUpperCase()!=='VACIAR')return toast('Cancelado: no se borró nada');
+ let n=0;for(const x of r){try{await deleteDoc(doc(db,'papelera',x.id));n++}catch(e){console.error(e)}}
+ log('vaciar papelera','papelera',n+' elementos');toast(n===r.length?'🧹 Papelera vaciada ('+n+')':'Se borraron '+n+' de '+r.length+' (revisá los permisos)');papView()};
 acts.pdel=async id=>{if(!confirm('¿Borrar para siempre?'))return;await deleteDoc(doc(db,'papelera',id));papView()};
 
 /* ==== AVISOS WHATSAPP / EXPORTAR / CLUB / RESPALDO / DIAGNÓSTICO ==== */
