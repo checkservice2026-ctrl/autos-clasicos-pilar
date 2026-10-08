@@ -259,7 +259,7 @@ acts.vsave=async t=>{const vs=readVehs($('#mbody'));if(!vs)return;await saveNewB
 const IMP_COLS={nombre:['nombre','nombres'],apellido:['apellido','apellidos'],dni:['dni','documento','nrodocumento','nrodoc'],whatsapp:['whatsapp','telefono','tel','celular','cel','movil'],email:['email','mail','correo','correoelectronico'],numero_socio:['numerosocio','nsocio','nrosocio','nrodesocio','numerodesocio','nrsocio','socio'],tipo:['tipovehiculo','tipodevehiculo','tipo','vehiculotipo'],marca:['marca'],modelo:['modelo'],anio:['anio','ano','year'],patente:['patente','dominio'],estado:['estado','estadoinscripcion']};
 const TIPO_MAP={auto:'AUTO',automovil:'AUTO',coche:'AUTO',carro:'AUTO',camioneta:'PICKUP',pickup:'PICKUP',camionetapickup:'PICKUP',moto:'MOTO',motocicleta:'MOTO',utilitario:'UTILITARIO',furgon:'UTILITARIO',camion:'CAMION',tractor:'TRACTOR',otro:'OTRO'};
 const readCsvText=async f=>{const b=await f.arrayBuffer();try{return new TextDecoder('utf-8',{fatal:true}).decode(b)}catch{return new TextDecoder('windows-1252').decode(b)}};
-const parseCsv=txt=>{txt=txt.replace(/^\ufeff/,'');const first=txt.split(/\r?\n/,1)[0],cn=c=>first.split(c).length-1,sep=[';','\t',','].sort((a,b)=>cn(b)-cn(a))[0],rows=[];let r=[],c='',q=false;for(let i=0;i<txt.length;i++){const ch=txt[i];if(q){if(ch==='"'){if(txt[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else if(ch==='"')q=true;else if(ch===sep){r.push(c);c=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&txt[i+1]==='\n')i++;r.push(c);c='';rows.push(r);r=[]}else c+=ch}if(c!==''||r.length){r.push(c);rows.push(r)}return rows.map(r=>r.map(x=>x.trim())).filter(r=>r.some(x=>x))};
+const parseCsv=txt=>{txt=txt.replace(/^\ufeff/,'').replace(/^(\\x[0-9a-f]{2})+/i,'').replace(/^\s+/,'');const first=txt.split(/\r?\n/,1)[0],cn=c=>first.split(c).length-1,sep=[';','\t',','].sort((a,b)=>cn(b)-cn(a))[0],rows=[];let r=[],c='',q=false;for(let i=0;i<txt.length;i++){const ch=txt[i];if(q){if(ch==='"'){if(txt[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else if(ch==='"')q=true;else if(ch===sep){r.push(c);c=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&txt[i+1]==='\n')i++;r.push(c);c='';rows.push(r);r=[]}else c+=ch}if(c!==''||r.length){r.push(c);rows.push(r)}return rows.map(r=>r.map(x=>x.trim())).filter(r=>r.some(x=>x))};
 const impList=(a,n=40)=>a.slice(0,n).map(x=>'<div><small>'+esc(x)+'</small></div>').join('')+(a.length>n?'<div><small>…y '+(a.length-n)+' más</small></div>':'');
 acts.evimp=ev=>modal(`<h3>📥 Importar participantes (CSV)</h3><p><small>Una fila por vehículo. Si una persona viene con 2 vehículos, repetí sus datos en 2 filas (mismo DNI) y se inscribe una sola vez con los dos. Columnas obligatorias: <b>nombre</b> y <b>apellido</b>.</small></p><button class="b l" data-a="evimpplt">⬇️ Descargar plantilla</button><label>Archivo CSV</label><input type="file" id="fcsvp" accept=".csv,.txt"><label>Estado de las inscripciones (si el archivo no trae la columna "estado")</label><select id="impest"><option>CONFIRMADO</option><option>PREINSCRIPTO</option></select><button class="b big" data-a="evimpgo" data-i="${ev}">Ver vista previa</button><button class="b l" data-a="cm">Cancelar</button>`);
 acts.evimpplt=()=>{const H='nombre;apellido;dni;whatsapp;email;numero_socio;tipo_vehiculo;marca;modelo;anio;patente;estado',R=['Juan;Pérez;20123456;3525123456;juan@mail.com;;Auto;Ford;Falcon;1972;ABC123;CONFIRMADO','Juan;Pérez;20123456;;;;Moto;Honda;CB 750;1978;;','María;Gómez;27111222;3525987654;;105;Auto;Chevrolet;Chevy;1968;;CONFIRMADO','Carlos;López;18999888;;;;Pickup;Ford;F-100;1975;;'];dlf('plantilla-participantes.csv','\ufeff'+[H,...R].join('\r\n'),'text/csv')};
@@ -323,9 +323,20 @@ acts.save=async k=>{const[c,id]=k.split('|');const d=formData();if(c==='socios')
   if(d.cupo)d.cupo=+d.cupo;if(d.importe)d.importe=+d.importe;if(d.anio)d.anio=+d.anio;
   if(id){await updateDoc(doc(db,c,id),{...d,updatedAt:serverTimestamp()});log('modificacion',c,id)}else{const r=await addDoc(collection(db,c),{...d,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});log('alta',c,r.id)}
   closeM();toast('Guardado');go(c)};
-acts.del=async k=>{const[c,id]=k.split('|');if(!confirm('¿Eliminar? Queda en la Papelera hasta que la vacíes.'))return;
+const cascadeEv=async(id,hijos)=>{let del=0,can=0;
+ for(const h of hijos){const{id:hid,...d}=h;let saved=false;
+  try{await setDoc(doc(db,'papelera','inscripciones__'+hid),{col:'inscripciones',docId:hid,data:d,parentEvento:id,borradoPor:me.email,fecha:serverTimestamp()});saved=true}catch{}
+  if(saved){try{await deleteDoc(doc(db,'inscripciones',hid));del++;continue}catch{}}
+  try{await updateDoc(doc(db,'inscripciones',hid),{estado:'CANCELADO',eventoEliminado:true,updatedAt:serverTimestamp()});can++}catch{}}
+ try{for(const u of await where1('ubicaciones','eventoId',id))await deleteDoc(doc(db,'ubicaciones',u.id))}catch{}
+ return{del,can}};
+acts.del=async k=>{const[c,id]=k.split('|');let hijos=[];
+  if(c==='eventos'){try{hijos=await where1('inscripciones','eventoId',id)}catch{}}
+  if(!confirm(c==='eventos'&&hijos.length?'¿Eliminar este evento y sus '+hijos.length+' inscripciones? Quedan en la Papelera y se restauran juntos.':'¿Eliminar? Queda en la Papelera hasta que la vacíes.'))return;
   try{const d=(await getDoc(doc(db,c,id))).data();await setDoc(doc(db,'papelera',c+'__'+id),{col:c,docId:id,data:d,borradoPor:me.email,fecha:serverTimestamp()})}catch{return toast('No se pudo mover a la Papelera (revisá las reglas). No se borró nada.')}
-  await deleteDoc(doc(db,c,id));log('baja',c,id);closeM();go(c)};
+  let r=null;if(c==='eventos')r=await cascadeEv(id,hijos);
+  await deleteDoc(doc(db,c,id));log('baja',c,id);closeM();go(c);
+  if(r&&hijos.length)toast('Evento eliminado · '+r.del+' inscripciones a la Papelera'+(r.can?' · '+r.can+' canceladas (solo ADMIN puede borrarlas)':''))};
 
 /* ==============================
 PARTICIPANTES + INSCRIPCIONES
@@ -404,9 +415,9 @@ async function dash(){
   const[so,e,i,cu,ing,egr,au]=await Promise.all(['socios','eventos','inscripciones','cuotas','ingresos','egresos','auditoria'].map(g));
   const sum=a=>a.reduce((t,x)=>t+(+x.importe||0),0),c=(n,t)=>`<div class="card"><div class="num">${n}</div>${t}</div>`;
   const I=sum(ing),E=sum(egr),mx=Math.max(1,I,E),bar=(v,col)=>`<div style="background:${col};height:12px;width:${v/mx*100}%;border-radius:6px;margin:3px 0"></div>`;
-  const prox=e.filter(x=>x.estado==='PUBLICADO'&&(x.fecha||'')>=today()).sort((x,y)=>x.fecha.localeCompare(y.fecha)).slice(0,4);
+  const up=e.filter(x=>x.estado==='PUBLICADO'&&(x.fecha||'')>=today()),upIds=new Set(up.map(x=>x.id)),prox=[...up].sort((x,y)=>x.fecha.localeCompare(y.fecha)).slice(0,4),inscUp=i.filter(x=>upIds.has(x.eventoId)&&x.estado!=='CANCELADO').length;
   const rec=au.sort((x,y)=>(y.fecha?.seconds||0)-(x.fecha?.seconds||0)).slice(0,6);
-  main(`<h2>Panel</h2><div class="grid">${c(so.filter(x=>x.estado==='ACTIVO').length,'Socios activos')}${c(cu.filter(x=>x.estado!=='PAGADA').length,'Cuotas pendientes')}${c(i.filter(x=>x.estado!=='CANCELADO').length,'Participantes')}${c(i.filter(x=>x.acreditado).length,'Acreditados')}${c(money(I),'Ingresos')}${c(money(E),'Egresos')}${c(money(I-E),'Saldo')}</div><div class="card"><b>Ingresos vs egresos</b>${bar(I,'#2e7d32')}${bar(E,'#7a1426')}</div><div class="card"><b>Próximos eventos</b><br>${prox.map(x=>`${esc(x.fecha)} — ${esc(x.nombre)}`).join('<br>')||'<span class="empty">Sin eventos próximos</span>'}</div><div class="card"><b>Últimas actividades</b><br>${rec.map(x=>`${esc(x.usuario)} · ${esc(x.accion)} · ${esc(x.entidad)}`).join('<br>')||'<span class="empty">Sin actividad</span>'}</div>`);
+  main(`<h2>Panel</h2><div class="grid">${c(so.filter(x=>x.estado==='ACTIVO').length,'Socios activos')}${c(cu.filter(x=>x.estado!=='PAGADA').length,'Cuotas pendientes')}${c(up.length,'Próximos eventos')}${c(inscUp,'Inscriptos en próximos eventos')}${c(money(I),'Ingresos')}${c(money(E),'Egresos')}${c(money(I-E),'Saldo')}</div><div class="card"><b>Ingresos vs egresos</b>${bar(I,'#2e7d32')}${bar(E,'#7a1426')}</div><div class="card"><b>Próximos eventos</b><br>${prox.map(x=>`${esc(x.fecha)} — ${esc(x.nombre)}`).join('<br>')||'<span class="empty">Sin eventos próximos</span>'}</div><div class="card"><b>Últimas actividades</b><br>${rec.map(x=>`${esc(x.usuario)} · ${esc(x.accion)} · ${esc(x.entidad)}`).join('<br>')||'<span class="empty">Sin actividad</span>'}</div>`);
 }
 
 /* ==============================
@@ -674,15 +685,18 @@ const statCalc=async id=>{
  const conAnio=V.map((v,k)=>({v,k})).filter(x=>x.v.anio).sort((a,b)=>a.v.anio-b.v.anio),old=conAnio[0];
  const sinVeh=V.filter(v=>!v.marca).length,base=acr+conf,pct=base?Math.round(acr/base*100):0;
  const hrs=hrCalc(ins);return{e,ins,cnt,V,n,acr,pre,esp,conf,soc,marcas,modelos,decs,old,sinVeh,pct,hrs}};
-const statText=d=>{const{e,n,acr,conf,pre,esp,soc,V,marcas,modelos,pct,hrs}=d,vv=V.filter(v=>v.marca),tipos=(()=>{const m={};vv.forEach(v=>{const k=tipoLbl(v.tipo)||'Otro';m[k]=(m[k]||0)+1});return Object.entries(m).sort((a,b)=>b[1]-a[1])})(),L=[];
+const statText=d=>{const{e,n,acr,conf,pre,esp,soc,V,marcas,modelos,pct,hrs}=d,vv=V.filter(v=>v.marca),tipos=(()=>{const m={};vv.forEach(v=>{const k=(tipoLbl(v.tipo)||'Otro').replace(/^[^\p{L}]+/u,'');m[k]=(m[k]||0)+1});return Object.entries(m).sort((a,b)=>b[1]-a[1])})(),L=[];
  L.push('*📊 Estadísticas · '+e.nombre+'*');const w=[e.fecha,e.lugar].filter(Boolean).join(' · ');if(w)L.push('📅 '+w);L.push('');
- L.push('👥 *Inscriptos:* '+n+' ('+soc+' socios · '+(n-soc)+' invitados)');L.push('✅ *Acreditados:* '+acr+' ('+pct+'% de asistencia)');if(conf)L.push('🟢 Confirmados sin ingresar: '+conf);if(pre)L.push('🟡 Pendientes: '+pre);if(esp)L.push('⏳ En espera: '+esp);
+ L.push('👥 *Inscriptos:* '+n+' ('+soc+' socios · '+(n-soc)+' invitados)');L.push('✅ *Acreditados:* '+acr+' ('+pct+'% de asistencia)');if(conf)L.push('🔹 Confirmados sin ingresar: '+conf);if(pre)L.push('🔸 Pendientes: '+pre);if(esp)L.push('⏳ En espera: '+esp);
  L.push('🚗 *Vehículos:* '+vv.length);
  if(tipos.length>1){L.push('');L.push('*Por tipo*');tipos.forEach(([k,c])=>L.push('• '+k+': '+c))}
  if(marcas.length){L.push('');L.push('*Top marcas*');marcas.slice(0,5).forEach(([k,c])=>L.push('• '+k+': '+c))}
- if(hrs.length){const mx=Math.max(1,...hrs.map(r=>r.veh)),mu=hrMulti(hrs),pk=hrs.reduce((a,r)=>r.veh>a.veh?r:a,hrs[0]),rs=hrs.length>30?hrs.slice(-30):hrs;L.push('');L.push('*⏱️ Ingreso de vehículos por hora*');rs.forEach(r=>L.push(hrLbl(r,mu)+' '+(r.veh?'█'.repeat(Math.max(1,Math.round(r.veh/mx*10))):'·')+' '+r.veh));if(pk.veh)L.push('🔥 Hora pico: '+hrLbl(pk,mu)+' ('+pk.veh+' vehículos)')}
+ if(hrs.length){const mx=Math.max(1,...hrs.map(r=>r.veh)),mu=hrMulti(hrs),pk=hrs.reduce((a,r)=>r.veh>a.veh?r:a,hrs[0]),rs=hrs.length>30?hrs.slice(-30):hrs;L.push('');L.push('*🕒 Ingreso de vehículos por hora*');rs.forEach(r=>L.push(hrLbl(r,mu)+' '+(r.veh?'█'.repeat(Math.max(1,Math.round(r.veh/mx*10))):'·')+' '+r.veh));if(pk.veh)L.push('🔥 Hora pico: '+hrLbl(pk,mu)+' ('+pk.veh+' vehículos)')}
  L.push('');L.push('— Autos Clásicos Pilar');return L.join('\n')};
-acts.statwa=async id=>{try{const d=await statCalc(id);window.open('https://wa.me/?text='+encodeURIComponent(statText(d)),'_blank')}catch(x){console.error(x);toast('No se pudieron calcular las estadísticas')}};
+acts.statwa=async id=>{try{const d=await statCalc(id),tx=statText(d);window._stTxt=tx;modal(`<h3>📲 Compartir estadísticas</h3><div class="card" style="white-space:pre-wrap;max-height:50vh;overflow:auto;font-size:.9rem">${esc(tx)}</div><button class="b big" data-a="statsend">Abrir WhatsApp</button><button class="b l" data-a="statcopy">📋 Copiar texto</button><button class="b l" data-a="cm">Cerrar</button><p><small>Si en WhatsApp los emojis no se ven bien, tocá "Copiar texto" y pegalo en el chat.</small></p>`)}catch(x){console.error(x);toast('No se pudieron calcular las estadísticas')}};
+const copyTxt=async tx=>{try{await navigator.clipboard.writeText(tx);return true}catch{try{const a=document.createElement('textarea');a.value=tx;a.style.cssText='position:fixed;opacity:0';document.body.append(a);a.select();const ok=document.execCommand('copy');a.remove();return ok}catch{return false}}};
+acts.statcopy=async()=>{toast(await copyTxt(window._stTxt||'')?'Texto copiado':'No se pudo copiar')};
+acts.statsend=async()=>{const tx=window._stTxt||'';const ok=await copyTxt(tx);window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(tx),'_blank');if(ok)toast('Texto copiado: si faltan emojis, pegalo en el chat')};
 acts.stats=async id=>{loading();const{e,ins,cnt,V,n,acr,pre,esp,conf,soc,marcas,modelos,decs,old,sinVeh,pct,hrs}=await statCalc(id);
  main(`<button class="b l" data-a="ev" data-i="${id}">← ${esc(e.nombre)}</button><h2>📊 Estadísticas</h2><p><small>${esc(e.fecha||'')} · ${esc(e.lugar||'')} · sin contar cancelados</small></p><button class="b" data-a="statwa" data-i="${id}">📲 Compartir por WhatsApp</button>
  <div style="display:flex;flex-wrap:wrap;margin:-.3em">${statBox(n,'Inscriptos')}${statBox(conf,'Confirmados')}${statBox(pre,'Pendientes')}${statBox(esp,'En espera')}${statBox(acr,'Acreditados')}${statBox(pct+'%','Asistencia')}</div>
@@ -774,9 +788,10 @@ setInterval(()=>{if(me)nextEv()},6e5);
 {const sv=acts.save;acts.save=async k=>{await sv(k);if(String(k).startsWith('eventos|'))nextEv()}}
 const beep=()=>{try{const a=new(window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.08;o.start();setTimeout(()=>{o.stop();a.close()},220)}catch{}};
 const notifWatch=()=>{if(window._nb||!['ADMIN','COMISION','TESORERO','ORGANIZADOR'].includes(role))return;let first=true;
- window._nb=onSnapshot(query(collection(db,'inscripciones'),where('estado','==','PREINSCRIPTO')),sn=>{
-  window._pend=sn.docs.map(d=>({id:d.id,...d.data()}));const b=$('#bn');if(b){b.textContent=window._pend.length||'';b.classList.toggle('hide',!window._pend.length)}
-  if(!first)sn.docChanges().filter(c=>c.type==='added').forEach(c=>{const i=c.doc.data(),m=i.nombre+' · '+(i.eventoNombre||'');toast('🔔 Nueva inscripción: '+m);beep();try{if(Notification.permission==='granted')new Notification('🔔 Nueva inscripción',{body:m,icon:'icons/icon-192.png'})}catch{}});
+ window._nb=onSnapshot(query(collection(db,'inscripciones'),where('estado','==','PREINSCRIPTO')),async sn=>{
+  let evOk=null;try{evOk=new Set((await all('eventos')).map(x=>x.id))}catch{}
+  window._pend=sn.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!evOk||evOk.has(x.eventoId));const b=$('#bn');if(b){b.textContent=window._pend.length||'';b.classList.toggle('hide',!window._pend.length)}
+  if(!first)sn.docChanges().filter(c=>c.type==='added'&&(!evOk||evOk.has(c.doc.data().eventoId))).forEach(c=>{const i=c.doc.data(),m=i.nombre+' · '+(i.eventoNombre||'');toast('🔔 Nueva inscripción: '+m);beep();try{if(Notification.permission==='granted')new Notification('🔔 Nueva inscripción',{body:m,icon:'icons/icon-192.png'})}catch{}});
   first=false},er=>console.error('notif',er))};
 acts.bell=()=>{try{if(window.Notification&&Notification.permission==='default')Notification.requestPermission()}catch{}
  const p=[...(window._pend||[])].sort((a,b)=>(b.fechaInscripcion?.seconds||0)-(a.fechaInscripcion?.seconds||0));
@@ -925,16 +940,16 @@ acts.impsgo=async()=>{const f=$('#fcsv').files[0];if(!f)return toast('Elegí un 
   if(!o.nombre||!o.apellido||(o.numero&&have.has(String(o.numero)))){sk++;continue}o.estado=(o.estado||'ACTIVO').toUpperCase();if(!['ACTIVO','SUSPENDIDO','BAJA'].includes(o.estado))o.estado='ACTIVO';
   await addDoc(collection(db,'socios'),{...o,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});if(o.numero)have.add(String(o.numero));ok++}
  log('alta','socios','import csv '+ok);closeM();toast(ok+' importados · '+sk+' omitidos');go('socios')};
-async function papView(){loading();const r=(await all('papelera').catch(()=>[])).sort((a,b)=>(b.fecha?.seconds||0)-(a.fecha?.seconds||0));
- main(`<h2>🗑️ Papelera <small>(${r.length})</small></h2>${r.length?'<button class="b g" data-a="pvac">🧹 VACIAR PAPELERA</button>':''}<div class="card wrap">${r.map(x=>`<div style="padding:.5em 0;border-bottom:1px solid var(--bd)"><b>${esc(x.col)}</b> · ${esc(x.data?.nombre||x.data?.titulo||x.data?.concepto||x.data?.socio||x.docId)}<br><small>${x.fecha?.seconds?new Date(x.fecha.seconds*1000).toLocaleDateString('es-AR'):''} · ${esc(x.borradoPor||'')}</small><br><button class="b" data-a="prest" data-i="${x.id}">♻️ Restaurar</button><button class="b g" data-a="pdel" data-i="${x.id}">Borrar para siempre</button></div>`).join('')||'<div class="empty">Papelera vacía</div>'}</div>`)}
+async function papView(){loading();const r0=(await all('papelera').catch(()=>[])).sort((a,b)=>(b.fecha?.seconds||0)-(a.fecha?.seconds||0)),nh={};r0.forEach(x=>{if(x.parentEvento)nh[x.parentEvento]=(nh[x.parentEvento]||0)+1});const r=r0.filter(x=>!x.parentEvento);
+ main(`<h2>🗑️ Papelera <small>(${r.length})</small></h2>${r.length?'<button class="b g" data-a="pvac">🧹 VACIAR PAPELERA</button>':''}<div class="card wrap">${r.map(x=>`<div style="padding:.5em 0;border-bottom:1px solid var(--bd)"><b>${esc(x.col)}</b> · ${esc(x.data?.nombre||x.data?.titulo||x.data?.concepto||x.data?.socio||x.docId)}<br><small>${x.fecha?.seconds?new Date(x.fecha.seconds*1000).toLocaleDateString('es-AR'):''} · ${esc(x.borradoPor||'')}${x.col==='eventos'&&nh[x.docId]?' · incluye '+nh[x.docId]+' inscripciones':''}</small><br><button class="b" data-a="prest" data-i="${x.id}">♻️ Restaurar</button><button class="b g" data-a="pdel" data-i="${x.id}">Borrar para siempre</button></div>`).join('')||'<div class="empty">Papelera vacía</div>'}</div>`)}
 VIEWS.papelera=['Papelera',papView];
-acts.prest=async id=>{const x=(await getDoc(doc(db,'papelera',id))).data();await setDoc(doc(db,x.col,x.docId),x.data);await deleteDoc(doc(db,'papelera',id));log('restaurar',x.col,x.docId);toast('Restaurado');papView()};
+acts.prest=async id=>{const x=(await getDoc(doc(db,'papelera',id))).data();await setDoc(doc(db,x.col,x.docId),x.data);await deleteDoc(doc(db,'papelera',id));let nr=0;if(x.col==='eventos'){try{for(const h of await where1('papelera','parentEvento',x.docId)){await setDoc(doc(db,h.col,h.docId),h.data);await deleteDoc(doc(db,'papelera',h.id));nr++}}catch(e){console.error('restaurar hijos',e)}}log('restaurar',x.col,x.docId);toast('Restaurado'+(nr?' con '+nr+' inscripciones':''));papView()};
 acts.pvac=async()=>{const r=await all('papelera');if(!r.length)return toast('La papelera ya está vacía');
  if(!confirm('Vas a borrar PARA SIEMPRE '+r.length+' elemento'+(r.length>1?'s':'')+'. No se puede deshacer. ¿Continuar?'))return;
  if((prompt('Para confirmar, escribí VACIAR')||'').trim().toUpperCase()!=='VACIAR')return toast('Cancelado: no se borró nada');
  let n=0;for(const x of r){try{await deleteDoc(doc(db,'papelera',x.id));n++}catch(e){console.error(e)}}
  log('vaciar papelera','papelera',n+' elementos');toast(n===r.length?'🧹 Papelera vaciada ('+n+')':'Se borraron '+n+' de '+r.length+' (revisá los permisos)');papView()};
-acts.pdel=async id=>{if(!confirm('¿Borrar para siempre?'))return;await deleteDoc(doc(db,'papelera',id));papView()};
+acts.pdel=async id=>{if(!confirm('¿Borrar para siempre?'))return;const x=(await getDoc(doc(db,'papelera',id))).data();if(x&&x.col==='eventos'){try{for(const h of await where1('papelera','parentEvento',x.docId))await deleteDoc(doc(db,'papelera',h.id))}catch{}}await deleteDoc(doc(db,'papelera',id));papView()};
 
 /* ==== AVISOS WHATSAPP / EXPORTAR / CLUB / RESPALDO / DIAGNÓSTICO ==== */
 const waGo=(n,m)=>window.open('https://wa.me/'+n+'?text='+encodeURIComponent(m),'_blank');
