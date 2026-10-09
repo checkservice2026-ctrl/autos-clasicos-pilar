@@ -82,6 +82,7 @@ nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-w
 .scanbar b{font-size:1.2rem}
 #net{position:fixed;bottom:0;left:0;right:0;background:#b45309;color:#fff;text-align:center;padding:.5em;font-size:.85rem;z-index:60}
 @media print{.tk{background:#fff!important;color:#000!important;border-color:#000!important}.tk h3{color:#000!important}header,nav,main,#login,.b{display:none!important}#modal{position:static;background:none}}
+.wm{position:relative;min-height:calc(100vh - 220px);isolation:isolate}.wm::before{content:"";position:absolute;inset:0;z-index:-1;background:url(logo.png) center 45%/min(75%,560px) no-repeat;opacity:.13;pointer-events:none}[data-theme=dark] .wm::before{opacity:.10}.wm .card{background:color-mix(in srgb,var(--sf) 78%,transparent);-webkit-backdrop-filter:blur(1.5px);backdrop-filter:blur(1.5px)}
 </style>
 <script>try{var u=JSON.parse(localStorage.getItem("acp-ui")||"{}"),d=document.documentElement,t=u.t||"auto";d.dataset.theme=t=="auto"?(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"):t;if(u.a)d.style.setProperty("--ac",u.a);if(u.r)d.style.setProperty("--r",u.r)}catch(e){}</script>
 </head>
@@ -429,7 +430,7 @@ async function dash(){
   const I=sum(ing),E=sum(egr),mx=Math.max(1,I,E),bar=(v,col)=>`<div style="background:${col};height:12px;width:${v/mx*100}%;border-radius:6px;margin:3px 0"></div>`;
   const up=e.filter(x=>x.estado==='PUBLICADO'&&(x.fecha||'')>=today()),upIds=new Set(up.map(x=>x.id)),prox=[...up].sort((x,y)=>x.fecha.localeCompare(y.fecha)).slice(0,4),inscUp=i.filter(x=>upIds.has(x.eventoId)&&x.estado!=='CANCELADO').length;
   const rec=au.sort((x,y)=>(y.fecha?.seconds||0)-(x.fecha?.seconds||0)).slice(0,6);
-  main(`<h2>Panel</h2><div class="grid">${c(so.filter(x=>x.estado==='ACTIVO').length,'Socios activos')}${c(cu.filter(x=>x.estado!=='PAGADA').length,'Cuotas pendientes')}${c(up.length,'Próximos eventos')}${c(inscUp,'Inscriptos en próximos eventos')}${c(money(I),'Ingresos')}${c(money(E),'Egresos')}${c(money(I-E),'Saldo')}</div><div class="card"><b>Ingresos vs egresos</b>${bar(I,'#2e7d32')}${bar(E,'#7a1426')}</div><div class="card"><b>Próximos eventos</b><br>${prox.map(x=>`${esc(x.fecha)} — ${esc(x.nombre)}`).join('<br>')||'<span class="empty">Sin eventos próximos</span>'}</div><div class="card"><b>Últimas actividades</b><br>${rec.map(x=>`${esc(x.usuario)} · ${esc(x.accion)} · ${esc(x.entidad)}`).join('<br>')||'<span class="empty">Sin actividad</span>'}</div>`);
+  main(`<div class="wm"><h2>Panel</h2><div class="grid">${c(so.filter(x=>x.estado==='ACTIVO').length,'Socios activos')}${c(cu.filter(x=>x.estado!=='PAGADA').length,'Cuotas pendientes')}${c(up.length,'Próximos eventos')}${c(inscUp,'Inscriptos en próximos eventos')}${c(money(I),'Ingresos')}${c(money(E),'Egresos')}${c(money(I-E),'Saldo')}</div><div class="card"><b>Ingresos vs egresos</b>${bar(I,'#2e7d32')}${bar(E,'#7a1426')}</div><div class="card"><b>Próximos eventos</b><br>${prox.map(x=>`${esc(x.fecha)} — ${esc(x.nombre)}`).join('<br>')||'<span class="empty">Sin eventos próximos</span>'}</div><div class="card"><b>Últimas actividades</b><br>${rec.map(x=>`${esc(x.usuario)} · ${esc(x.accion)} · ${esc(x.entidad)}`).join('<br>')||'<span class="empty">Sin actividad</span>'}</div></div>`);
 }
 
 /* ==============================
