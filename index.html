@@ -922,8 +922,18 @@ async function evSearch(id){const t=document.querySelector('#main .card.wrap tab
 /* ==== MENÚS DESPLEGABLES ==== */
 acts.rmenu=async t=>{const i=(await getDoc(doc(db,'inscripciones',t))).data(),e=(await getDoc(doc(db,'eventos',i.eventoId))).data()||{};
  const B=(a,l,c='l')=>`<button class="b ${c} big" data-a="rm" data-i="${t}|${a}">${l}</button>`;
- modal(`<h3>${esc(i.nombre)}</h3><p><small>${esc(i.vehiculo||'')} · ${esc(i.estado)}</small></p>${B('tk','🎫 Ver QR')}${staff()&&i.estado==='CONFIRMADO'&&!i.acreditado?B('acr1','✅ Acreditar',''):''}${staff()?B('avisar','💬 Avisar por WhatsApp'):''}${staff()&&i.estado!=='CANCELADO'?B('vedit','🚗 Editar vehículos'):''}${staff()&&+e.arancel&&i.estado!=='CANCELADO'&&!i.pagado?B('cobi','💵 Cobrar '+money(e.arancel),''):''}${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?B('cinsc','🚫 Cancelar inscripción','g'):''}<button class="b l" data-a="cm">Cerrar</button>`)};
+ modal(`<h3>${esc(i.nombre)}</h3><p><small>${esc(i.vehiculo||'')} · ${esc(i.estado)}</small></p>${B('tk','🎫 Ver QR')}${staff()&&i.estado==='CONFIRMADO'&&!i.acreditado?B('acr1','✅ Acreditar',''):''}${staff()?B('avisar','💬 Avisar por WhatsApp'):''}${staff()&&i.estado!=='CANCELADO'?B('vedit','🚗 Editar vehículos'):''}${staff()&&+e.arancel&&i.estado!=='CANCELADO'&&!i.pagado?B('cobi','💵 Cobrar '+money(e.arancel),''):''}${staff()&&i.estado!=='CANCELADO'&&!i.acreditado?B('cinsc','🚫 Cancelar inscripción','g'):''}${staff()?B('delins','🗑️ Eliminar inscripción','g'):''}<button class="b l" data-a="cm">Cerrar</button>`)};
 acts.rm=k=>{const[t,a]=k.split('|');if(a!=='tk'&&a!=='avisar')closeM();acts[a](t)};
+acts.delins=async t=>{const r=doc(db,'inscripciones',t),s=await getDoc(r);if(!s.exists())return toast('La inscripción ya no existe');const i=s.data();
+ const msg='¿Eliminar la inscripción de '+i.nombre+'?'+(i.acreditado?'\n\nYa fue acreditado/a: dejará de contarse en las estadísticas de ingreso del evento.':'')+'\n\nQueda en la Papelera y se puede restaurar.';
+ if(!confirm(msg))return;
+ const pid='inscripciones__'+t;
+ try{await setDoc(doc(db,'papelera',pid),{col:'inscripciones',docId:t,data:i,borradoPor:me.email,fecha:serverTimestamp()})}catch{return toast('No se pudo mover a la Papelera. No se borró nada.')}
+ try{await deleteDoc(r)}catch(e){try{await deleteDoc(doc(db,'papelera',pid))}catch{}return toast(e&&e.code==='permission-denied'?'Tu rol no tiene permiso para eliminar inscripciones (revisá las reglas de Firestore). Podés cancelarla.':'No se pudo eliminar ('+(e.code||'error')+')')}
+ try{await deleteDoc(doc(db,'ubicaciones',t))}catch{}
+ log('baja','inscripciones',t);toast('Inscripción eliminada');acts.ev(i.eventoId);
+ if(['CONFIRMADO','ACREDITADO'].includes(i.estado)){try{const sig=(await where1('inscripciones','eventoId',i.eventoId)).filter(x=>x.estado==='ESPERA').sort((a,b)=>(a.fechaInscripcion?.seconds||0)-(b.fechaInscripcion?.seconds||0))[0];
+  if(sig&&confirm('Se liberó un lugar. ¿Confirmar a '+sig.nombre+' (primero en lista de espera)?')){await updateDoc(doc(db,'inscripciones',sig.id),{estado:'CONFIRMADO',updatedAt:serverTimestamp()});log('cambio de estado','inscripciones',sig.id);acts.ev(i.eventoId);if(confirm('¿Avisarle por WhatsApp con su QR?'))acts.wa(sig.id)}}catch(e){console.error(e)}}};
 document.addEventListener('click',e=>{document.querySelectorAll('details.dd[open]').forEach(d=>{if(!d.contains(e.target)||e.target.closest('.ddm button'))d.open=false})});
 
 /* ==== GASTOS / INGRESOS / CAJA ==== */
