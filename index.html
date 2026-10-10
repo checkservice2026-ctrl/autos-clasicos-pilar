@@ -84,6 +84,22 @@ nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-w
 @media print{.tk{background:#fff!important;color:#000!important;border-color:#000!important}.tk h3{color:#000!important}header,nav,main,#login,.b{display:none!important}#modal{position:static;background:none}}
 .wm{position:relative;min-height:calc(100vh - 220px);isolation:isolate}.wm::before{content:"";position:absolute;inset:0;z-index:-1;background:url(logo.png) center 45%/min(75%,560px) no-repeat;opacity:.13;pointer-events:none}[data-theme=dark] .wm::before{opacity:.10}.wm .card{background:color-mix(in srgb,var(--sf) 78%,transparent);-webkit-backdrop-filter:blur(1.5px);backdrop-filter:blur(1.5px)}
 @media(max-width:899px){header{flex-wrap:wrap;row-gap:.3em}header>span{margin-left:auto;display:flex;align-items:center}header>span .b.g{padding:.55em .9em;margin:0 0 0 .2em}.hlogo{height:60px;max-width:46vw}#nextev{order:5;flex:1 1 100%;white-space:normal;text-align:center;padding:.4em .2em .1em;margin-top:.15em;border-top:1px solid var(--bd);font-size:.82rem;line-height:1.4;overflow:visible}#nextev:empty{display:none}#nextev strong{font-size:.9rem}#cd{white-space:nowrap;font-size:.95rem}}
+
+/* CHAT */
+.chat{display:flex;flex-direction:column;height:calc(100dvh - 150px);min-height:340px;max-width:760px;margin:0 auto}
+.chat h2{margin:.2em 0 .4em}
+#chm{flex:1;overflow-y:auto;padding:.6em .3em;display:flex;flex-direction:column;gap:.35em;-webkit-overflow-scrolling:touch}
+.cb{max-width:82%;padding:.5em .8em;border-radius:16px;background:var(--sf);border:1px solid var(--bd);box-shadow:var(--sh);align-self:flex-start;white-space:pre-wrap;word-break:break-word;line-height:1.35}
+.cb.me{align-self:flex-end;background:var(--grad);color:#fff;border-color:transparent}
+.cb.me a{color:#fff}.cb a{text-decoration:underline}
+.cb .cn{font-size:.72rem;font-weight:700;color:var(--ac);display:block;margin-bottom:.1em}
+.cb .ct{font-size:.66rem;opacity:.65;display:block;text-align:right;margin-top:.15em}
+.cb .cx{background:none;border:0;color:inherit;opacity:.55;cursor:pointer;font-size:.7rem;padding:0 .2em;margin-left:.4em}
+.cdy{align-self:center;font-size:.72rem;color:var(--mut);background:var(--bd);padding:.15em .8em;border-radius:99px;margin:.4em 0}
+.cin{display:flex;gap:.4em;align-items:flex-end;padding-top:.5em}
+.cin textarea{flex:1;margin:0;resize:none;max-height:120px;min-height:46px;padding:.7em .9em;border:1.5px solid var(--bd);border-radius:calc(var(--r)*.7);background:var(--inp);color:var(--tx);font:inherit}
+.cin textarea:focus{outline:0;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 25%,transparent)}
+.cin .b{margin:0;min-height:46px}
 </style>
 <script>try{var u=JSON.parse(localStorage.getItem("acp-ui")||"{}"),d=document.documentElement,t=u.t||"auto";d.dataset.theme=t=="auto"?(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"):t;if(u.a)d.style.setProperty("--ac",u.a);if(u.r)d.style.setProperty("--r",u.r)}catch(e){}</script>
 </head>
@@ -123,7 +139,7 @@ FIREBASE
 ============================== */
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,createUserWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {getFirestore,initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getDocFromCache,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,serverTimestamp,runTransaction,limit,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getDocFromCache,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,serverTimestamp,runTransaction,limit,onSnapshot,orderBy} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // >>> PEGÁ ACÁ LAS CREDENCIALES (Firebase Console > Configuración del proyecto > Tus apps > Web) <<<
 const firebaseConfig = {
@@ -478,7 +494,7 @@ MENÚ POR ROL
 ============================== */
 const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','gastos','ingresos','caja','club','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
 const effPerm=r=>(PERM&&PERM[r])?PERM[r]:defNav(r);
-const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');return l.length?l:['cred']};
+const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');const b=l.length?l:['cred'];return b.includes('chat')?b:[...b,'chat']};
 
 /* ==============================
 CAMPOS COMPLETOS Y CATEGORÍAS
@@ -658,28 +674,68 @@ const man={name:'Autos Clásicos Pilar',short_name:'ACP',start_url:location.orig
 {const l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(new Blob([JSON.stringify(man)],{type:'application/manifest+json'}));document.head.append(l)}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 
+
+/* ==== CHAT DEL CLUB ==== */
+const chNom=()=>{const n=(me.displayName||me.email.split('@')[0]).replace(/[._-]+/g,' ');return n.charAt(0).toUpperCase()+n.slice(1)};
+const chSeenGet=()=>{try{return +localStorage.getItem('acp-chat-seen-'+me.uid)||0}catch{return 0}};
+const chSeenSet=()=>{try{localStorage.setItem('acp-chat-seen-'+me.uid,String(Date.now()))}catch{}};
+const chBadge=n=>{const b=$('#chb');if(b){b.textContent=n>9?'9+':n||'';b.classList.toggle('hide',!n)}};
+const chMs=d=>{const t=d.ts;return t&&t.toMillis?t.toMillis():Date.now()};
+const chLink=s=>esc(s).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>');
+const chStop=()=>{if(window._ch){try{window._ch()}catch{}window._ch=null}};
+const chWatchStop=()=>{if(window._cw){try{window._cw()}catch{}window._cw=null}};
+const chatWatch=()=>{if(window._cw||!me)return;let first=true;
+ window._cw=onSnapshot(query(collection(db,'chat'),orderBy('ts','desc'),limit(30)),sn=>{
+  const inChat=!!window._ch,seen=chSeenGet();
+  const nuevos=sn.docs.map(d=>d.data({serverTimestamps:'estimate'})).filter(d=>d.uid!==me.uid&&chMs(d)>seen);
+  chBadge(inChat?0:nuevos.length);
+  if(!first&&!inChat)sn.docChanges().filter(c=>c.type==='added'&&!c.doc.metadata.hasPendingWrites).forEach(c=>{const d=c.doc.data();if(d.uid!==me.uid)toast('💬 '+d.nombre+': '+String(d.texto).slice(0,50))});
+  first=false},er=>console.error('chat',er))};
+async function chatView(){
+ chStop();
+ main(`<div class="chat"><h2>💬 Chat del club</h2><div id="chm"><div class="loader">Cargando…</div></div><div class="cin"><textarea id="chi" rows="1" maxlength="500" placeholder="Escribí un mensaje…"></textarea><button class="b" data-a="chsend" id="chs">Enviar</button></div></div>`);
+ const box=$('#chm'),inp=$('#chi');
+ const draw=sn=>{
+  const ms=sn.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})})).reverse();
+  const near=box.scrollHeight-box.scrollTop-box.clientHeight<140,last=ms[ms.length-1];
+  let day='',h='';
+  for(const m of ms){const dt=new Date(chMs(m)),dk=dt.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+   if(dk!==day){day=dk;h+=`<div class="cdy">${esc(dk)}</div>`}
+   const mine=m.uid===me.uid,can=mine||['ADMIN','COMISION'].includes(role);
+   h+=`<div class="cb${mine?' me':''}">${mine?'':`<span class="cn">${esc(m.nombre)}${['ADMIN','COMISION'].includes(m.role)?' · '+esc(m.role):''}</span>`}${chLink(m.texto)}<span class="ct">${dt.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}${can?`<button class="cx" data-a="chdel" data-i="${m.id}" title="Borrar">🗑</button>`:''}</span></div>`}
+  box.innerHTML=h||'<div class="empty">Todavía no hay mensajes. ¡Escribí el primero!</div>';
+  if(near||(last&&last.uid===me.uid)||!box.dataset.ok)box.scrollTop=box.scrollHeight;
+  box.dataset.ok=1;chSeenSet();chBadge(0)};
+ window._ch=onSnapshot(query(collection(db,'chat'),orderBy('ts','desc'),limit(100)),draw,er=>{box.innerHTML='<div class="empty">Error: '+esc(er.code||er.message)+' — revisá las reglas de Firestore (chat)</div>'});
+ inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();acts.chsend()}});
+ inp.addEventListener('input',()=>{inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,120)+'px'})}
+acts.chsend=()=>{const i=$('#chi');if(!i)return;const t=i.value.trim().slice(0,500);if(!t)return;
+ i.value='';i.style.height='auto';i.focus();
+ addDoc(collection(db,'chat'),{uid:me.uid,nombre:chNom(),role,texto:t,ts:serverTimestamp()}).catch(e=>toast('No se pudo enviar ('+(e.code||'error')+')'))};
+acts.chdel=async id=>{if(!confirm('¿Borrar este mensaje?'))return;try{await deleteDoc(doc(db,'chat',id))}catch(e){toast('No se pudo borrar ('+(e.code||'error')+')')}};
+
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
-const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','buscar','backup','aud','papelera','users','perm'];
-VIEWS.com=VIEWS.comunicados;
+const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','chat','buscar','backup','aud','papelera','users','perm'];
+VIEWS.com=VIEWS.comunicados;VIEWS.chat=['Chat',chatView];
 VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];VIEWS.perm=['Permisos',permView];
 const PR=['SOCIO','ORGANIZADOR','TESORERO','COMISION'];
-function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&VIEWS[k]);
+function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&k!=='chat'&&VIEWS[k]);
  main(`<h2>Permisos por rol</h2><p><small>Marcá qué módulos ve cada rol. ADMIN siempre ve todo.</small></p><div class="card wrap"><table><tr><th>Módulo</th>${PR.map(r=>`<th>${r}</th>`).join('')}</tr>${mods.map(k=>`<tr><td>${VIEWS[k][0]}</td>${PR.map(r=>`<td><input type="checkbox" class="pc" data-r="${r}" data-k="${k}" ${effPerm(r).includes(k)?'checked':''} style="width:22px;height:22px;min-height:0;margin:0"></td>`).join('')}</tr>`).join('')}</table></div><button class="b" data-a="permsave">Guardar</button><button class="b l" data-a="permreset">Restablecer</button><p><small>Los cambios se aplican la próxima vez que cada usuario abra la app. Esto oculta módulos; la protección real de los datos la dan las reglas de Firestore.</small></p>`)}
 acts.permsave=async()=>{const m={};PR.forEach(r=>m[r]=[]);document.querySelectorAll('.pc').forEach(c=>{if(c.checked)m[c.dataset.r].push(c.dataset.k)});try{await setDoc(doc(db,'config','permisos'),{map:m});PERM=m;toast('Permisos guardados')}catch(e){toast('No se pudo guardar: revisá las reglas de Firestore')}};
 acts.permreset=async()=>{try{await deleteDoc(doc(db,'config','permisos'));PERM=null;toast('Restablecido');permView()}catch(e){toast('No se pudo restablecer')}};
-const go=k=>{window._inFicha=0;$('#nav').classList.remove('open');$('#nbd').classList.remove('open');if(window._lv){try{window._lv.stop()}catch{}window._lv=null}if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
+const go=k=>{window._inFicha=0;$('#nav').classList.remove('open');$('#nbd').classList.remove('open');chStop();if(window._lv){try{window._lv.stop()}catch{}window._lv=null}if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
 acts.nav=go;
 async function pubView(t){
   $('#pub').classList.remove('hide');$('#pub').innerHTML='<div class="loader">Cargando…</div>';
   try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='ESPERA')$('#qr').innerHTML='<div class="res warn">⏳ Lista de espera<br><small>El cupo está completo. Si se libera un lugar te avisamos.</small></div>';else if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t);try{const ev=(await getDoc(doc(db,'eventos',d.eventoId))).data();if(ll(ev))$('#pub').insertAdjacentHTML('beforeend',`<p style="text-align:center"><a class="b" href="${mapsUrl(ev)}" target="_blank" rel="noopener">📍 Cómo llegar al evento</a></p>`);if(ev&&ev.seguimiento&&['CONFIRMADO','ACREDITADO'].includes(d.estado))$('#pub').insertAdjacentHTML('beforeend',`<div class="card" style="text-align:center"><b>📡 Seguimiento en vivo</b><p><small>La organización te ve en el mapa mientras tengas esta pantalla abierta y compartiendo. Podés frenar cuando quieras.</small></p><button id="lvbtn" class="b big" data-a="lvgo" data-i="${t}|${d.eventoId}">📡 COMPARTIR MI UBICACIÓN</button><div id="lvst" style="margin-top:.5em"></div></div>`)}catch{}}
   catch(x){console.error('pubView',x);$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'no-existe')+'</small></p>'}
 }
-const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐'};
+const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐',chat:'💬'};
 function route(){
-  if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
-  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML='<div class="nwho">'+esc(me.email)+' · '+role+'</div>'+navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();nextEv()}
+  if(!me){chStop();chWatchStop()}if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
+  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML='<div class="nwho">'+esc(me.email)+' · '+role+'</div>'+navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}${k==='chat'?' <span id="chb" class="badge hide" style="background:var(--ac);color:#fff"></span>':''}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();chatWatch();nextEv()}
 }
 
 /* ==== APARIENCIA (tema, color, bordes) ==== */
@@ -1060,7 +1116,7 @@ const rulesCheck=()=>{if(!window._rulesErr||$('#rb'))return;const d=document.cre
 acts.diag=async()=>{const o=$('#dg'),R=[];o.innerHTML='Probando…';
  const T=async(n,f)=>{try{await f();R.push('✅ '+n)}catch(e){R.push('❌ '+n+' — '+(e.code||e.message))}};
  await T('Leer mi rol',async()=>{const s=await getDoc(doc(db,'users',me.uid));if(!s.exists())throw{code:'no existe users/'+me.uid};if(s.data().role!==role)throw{code:'el rol guardado es '+s.data().role}});
- for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
+ for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones','chat'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
  await T('Link público (sin login): leer evento',async()=>{const ev=(await getDocs(query(collection(db,'eventos'),limit(1)))).docs[0];if(!ev)throw{code:'no hay eventos cargados'};window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'eventos',ev.id))});
  await T('Link público (sin login): leer inscripción',async()=>{window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'inscripciones','prueba-diagnostico'))});
  let l=0;try{l=+localStorage.getItem('acp-lastbackup')||0}catch{}
