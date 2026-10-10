@@ -100,6 +100,10 @@ nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-w
 .cin textarea{flex:1;margin:0;resize:none;max-height:120px;min-height:46px;padding:.7em .9em;border:1.5px solid var(--bd);border-radius:calc(var(--r)*.7);background:var(--inp);color:var(--tx);font:inherit}
 .cin textarea:focus{outline:0;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 25%,transparent)}
 .cin .b{margin:0;min-height:46px}
+.cin .eb{padding:.5em .7em;font-size:1.3rem;line-height:1}
+.cem{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:2px;max-height:150px;overflow-y:auto;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:.3em;margin-top:.4em}
+.cem button{background:none;border:0;font-size:1.45rem;cursor:pointer;padding:.15em;border-radius:8px;min-height:40px}
+.cem button:hover{background:var(--bd)}
 </style>
 <script>try{var u=JSON.parse(localStorage.getItem("acp-ui")||"{}"),d=document.documentElement,t=u.t||"auto";d.dataset.theme=t=="auto"?(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"):t;if(u.a)d.style.setProperty("--ac",u.a);if(u.r)d.style.setProperty("--r",u.r)}catch(e){}</script>
 </head>
@@ -691,9 +695,10 @@ const chatWatch=()=>{if(window._cw||!me)return;let first=true;
   chBadge(inChat?0:nuevos.length);
   if(!first&&!inChat)sn.docChanges().filter(c=>c.type==='added'&&!c.doc.metadata.hasPendingWrites).forEach(c=>{const d=c.doc.data();if(d.uid!==me.uid)toast('💬 '+d.nombre+': '+String(d.texto).slice(0,50))});
   first=false},er=>console.error('chat',er))};
+const CHEMO=['😀','😁','😂','🤣','😊','😍','😎','🤩','😉','🙂','🙃','😅','😬','🤔','😮','😢','😭','😡','🥳','🤝','👍','👎','👏','🙌','🙏','💪','👌','✌️','🤞','👋','❤️','🔥','⭐','🎉','✅','❌','⚠️','💯','🚗','🚙','🏎️','🚕','🚓','🛻','🚐','🏍️','🏁','🔧','🛠️','⛽','🛞','🔑','🚦','🛣️','📍','📅','⏰','📸','🎶','☀️','🌧️','🍻','🍖','☕','🏆'];
 async function chatView(){
  chStop();
- main(`<div class="chat"><h2>💬 Chat del club</h2><div id="chm"><div class="loader">Cargando…</div></div><div class="cin"><textarea id="chi" rows="1" maxlength="500" placeholder="Escribí un mensaje…"></textarea><button class="b" data-a="chsend" id="chs">Enviar</button></div></div>`);
+ main(`<div class="chat"><h2>💬 Chat del club</h2><div id="chm"><div class="loader">Cargando…</div></div><div id="cem" class="cem hide">${CHEMO.map(e=>`<button type="button" data-a="chpick" data-i="${e}">${e}</button>`).join('')}</div><div class="cin"><button type="button" class="b l eb" data-a="chemo" title="Emoticones">😊</button><textarea id="chi" rows="1" maxlength="500" placeholder="Escribí un mensaje…"></textarea><button class="b" data-a="chsend" id="chs">Enviar</button></div></div>`);
  const box=$('#chm'),inp=$('#chi');
  const draw=sn=>{
   const ms=sn.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})})).reverse();
@@ -710,8 +715,10 @@ async function chatView(){
  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();acts.chsend()}});
  inp.addEventListener('input',()=>{inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,120)+'px'})}
 acts.chsend=()=>{const i=$('#chi');if(!i)return;const t=i.value.trim().slice(0,500);if(!t)return;
- i.value='';i.style.height='auto';i.focus();
+ const em=$('#cem');if(em)em.classList.add('hide');i.value='';i.style.height='auto';i.focus();
  addDoc(collection(db,'chat'),{uid:me.uid,nombre:chNom(),role,texto:t,ts:serverTimestamp()}).catch(e=>toast('No se pudo enviar ('+(e.code||'error')+')'))};
+acts.chemo=()=>{$('#cem').classList.toggle('hide')};
+acts.chpick=e=>{const i=$('#chi');if(!i)return;const a=i.selectionStart??i.value.length,b=i.selectionEnd??a;if(i.value.length-(b-a)+e.length>500)return;i.value=i.value.slice(0,a)+e+i.value.slice(b);const c=a+e.length;i.setSelectionRange(c,c);i.dispatchEvent(new Event('input'));if(matchMedia('(pointer:fine)').matches)i.focus()};
 acts.chdel=async id=>{if(!confirm('¿Borrar este mensaje?'))return;try{await deleteDoc(doc(db,'chat',id))}catch(e){toast('No se pudo borrar ('+(e.code||'error')+')')}};
 
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
