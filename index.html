@@ -122,10 +122,12 @@ nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-w
 
 <div id="login" class="hide card"><button class="gear" data-a="cfg" title="Apariencia">⚙️</button>
   <img class="lg" src="logo.png" alt="" onerror="this.style.display='none'"><h2 style="text-align:center;color:var(--bordo);letter-spacing:.1em">AUTOS CLÁSICOS PILAR</h2>
+  <div id="lmsg" class="res warn hide" style="font-size:1rem;padding:.9em;margin:.6em 0"></div>
   <label>Email</label><input id="em" type="email" autocomplete="username">
   <label>Contraseña</label><input id="pw" type="password" autocomplete="current-password">
   <button class="b big" data-a="login">INGRESAR</button>
   <button class="b l big" data-a="reset" style="margin-top:.5em">Recuperar contraseña</button>
+  <button class="b big" data-a="regopen" style="margin-top:.5em">Crear cuenta</button>
 </div>
 
 <div id="app" class="hide">
@@ -194,14 +196,24 @@ const log=(accion,entidad,id)=>addDoc(collection(db,'auditoria'),{usuario:me?.em
 /* ==============================
 AUTHENTICATION
 ============================== */
-acts.login=()=>signInWithEmailAndPassword(auth,$('#em').value.trim(),$('#pw').value).catch(()=>toast('Credenciales incorrectas'));
+acts.login=()=>{window._pendMsg='';const lm=$('#lmsg');if(lm)lm.classList.add('hide');return signInWithEmailAndPassword(auth,$('#em').value.trim(),$('#pw').value).catch(()=>toast('Credenciales incorrectas'))};
 acts.reset=async()=>{const e=$('#em').value.trim();if(!e)return toast('Ingresá tu email');await sendPasswordResetEmail(auth,e);toast('Te enviamos un correo para restablecer la contraseña')};
 acts.logout=async()=>{if(window._lo)return;window._lo=1;$('#nav').classList.remove('open');$('#nbd').classList.remove('open');const sp=showSplash(3000);try{await signOut(auth)}catch(e){console.error(e)}await sp;window._lo=0};
 const splashDone=new Promise(r=>{const t0=performance.now(),f=$('#pfill'),pc=$('#ppct');
   const step=n=>{const k=Math.min(1,(n-t0)/5000);f.style.width=(k*100)+'%';pc.textContent=Math.floor(k*100)+'%';if(k<1)requestAnimationFrame(step)};
   requestAnimationFrame(step);
   setTimeout(()=>{f.style.width='100%';pc.textContent='100%';r()},5000)});
-const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{me=u;if(u){window._rulesErr=null;try{const s=await getDoc(doc(db,'users',u.uid));role=s.exists()?s.data().role:'SOCIO'}catch(e){role='SOCIO';if(e&&e.code==='permission-denied')window._rulesErr=e.code}try{const pd=await getDoc(doc(db,'config','permisos'));PERM=pd.exists()?(pd.data().map||null):null}catch{PERM=null}await loadMarcas()}r();if(started)route()}));
+const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{
+ if(u&&window._reg){me=null;r();return}
+ me=u;let pend='';
+ if(u){window._rulesErr=null;
+  try{const ref=doc(db,'users',u.uid),sn=await getDoc(ref);
+   if(sn.exists()){role=sn.data().role;if(role==='PENDIENTE')pend=sn.data().estado==='RECHAZADO'?'RECHAZADO':'PENDIENTE'}
+   else{pend='PENDIENTE';try{await setDoc(ref,{email:u.email,nombre:'',apellido:'',role:'PENDIENTE',estado:'PENDIENTE',createdAt:serverTimestamp()})}catch{}}}
+  catch(e){role='SOCIO';if(e&&e.code==='permission-denied')window._rulesErr=e.code}
+  if(pend){me=null;window._pendMsg=pend;try{await signOut(auth)}catch{}}
+  else{try{const pd=await getDoc(doc(db,'config','permisos'));PERM=pd.exists()?(pd.data().map||null):null}catch{PERM=null}await loadMarcas()}}
+ r();if(started)route()}));
 let started=false;
 
 /* ==============================
@@ -545,8 +557,6 @@ acts.conf=async t=>{const r=doc(db,'inscripciones',t),i=(await getDoc(r)).data()
 USUARIOS Y ROLES (solo ADMIN)
 ============================== */
 const ROLES='SOCIO,ORGANIZADOR,TESORERO,COMISION,ADMIN';
-async function usersView(){loading();const u=await all('users');
-  main(`<h2>Usuarios y roles</h2><button class="b" data-a="nu">+ Nuevo usuario</button><div class="card wrap"><table>${u.map(x=>`<tr><td>${esc(x.email)}</td><td>${badge(x.role)}</td><td><button class="b l" data-a="ur" data-i="${x.id}">Cambiar rol</button></td></tr>`).join('')}</table>${u.length?'':'<div class="empty">Sin usuarios</div>'}</div><p><small>Para que un SOCIO vea su credencial, su ficha de socio debe tener el mismo email.</small></p>`)}
 acts.nu=()=>modal(`<h3>Nuevo usuario</h3>${fld(['email','Email','email'],'')}${fld(['password','Contraseña (mín. 6)','password'],'')}${fld(['role','Rol',ROLES],'SOCIO')}<button class="b" data-a="nus">Crear</button><button class="b l" data-a="cm">Cancelar</button>`);
 acts.nus=async()=>{const d=formData();if(!d.email||d.password.length<6)return toast('Email y contraseña (mín. 6)');
   let c;try{c=await createUserWithEmailAndPassword(auth2,d.email,d.password)}catch(x){return toast('No se pudo crear: '+(x.code||x.message))}
@@ -937,6 +947,55 @@ acts.enccsv=()=>{const D=window._er;if(!D)return;const qs=D.e.preguntas||[];
  const blob=new Blob(['\ufeff'+rows.map(r=>r.map(c).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='encuesta-'+String(D.e.titulo).replace(/[^\w]+/g,'_').slice(0,40)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
 
+/* ==== REGISTRO DE CUENTAS (requiere aprobación del admin) ==== */
+const PEND_MSG={
+ PENDIENTE:'⏳ Tu cuenta está pendiente de aprobación. Un administrador debe autorizarte antes de que puedas ingresar.',
+ ENVIADA:'✅ Solicitud enviada. Un administrador debe aprobar tu cuenta antes de que puedas ingresar. Volvé a intentar más tarde.',
+ RECHAZADO:'❌ Tu solicitud de cuenta fue rechazada. Contactá a la comisión del club.'};
+acts.regopen=()=>modal(`<h3>Crear cuenta</h3><p><small>Completá tus datos. Un administrador del club tiene que aprobar tu cuenta antes de que puedas ingresar por primera vez.</small></p><label>Nombre *</label><input id="rn" maxlength="40" autocomplete="given-name"><label>Apellido *</label><input id="ra" maxlength="40" autocomplete="family-name"><label>Correo electrónico *</label><input id="re" type="email" maxlength="120" autocomplete="email" inputmode="email"><label>Contraseña * (mín. 6 caracteres)</label><input id="rp" type="password" autocomplete="new-password"><label>Repetir contraseña *</label><input id="rp2" type="password" autocomplete="new-password"><input id="rw" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true"><button class="b big" id="regb" data-a="regsave">Enviar solicitud</button><button class="b l big" data-a="cm">Cancelar</button>`);
+acts.regsave=async()=>{
+ if(($('#rw').value||'').trim())return;
+ const nombre=$('#rn').value.trim().slice(0,40),apellido=$('#ra').value.trim().slice(0,40),email=$('#re').value.trim().toLowerCase().replace(/\s+/g,''),pw=$('#rp').value;
+ if(nombre.length<2||apellido.length<2||!/\p{L}/u.test(nombre+apellido))return toast('Completá nombre y apellido');
+ if(pw.length<6)return toast('La contraseña debe tener al menos 6 caracteres');
+ if(pw!==$('#rp2').value)return toast('Las contraseñas no coinciden');
+ const b=$('#regb');b.disabled=true;b.textContent='Verificando…';
+ const er=await emailCheck(email);
+ if(er){b.disabled=false;b.textContent='Enviar solicitud';return toast(er)}
+ b.textContent='Enviando…';window._reg=1;
+ try{
+  const c=await createUserWithEmailAndPassword(auth,email,pw);
+  try{await setDoc(doc(db,'users',c.user.uid),{email:c.user.email,nombre,apellido,role:'PENDIENTE',estado:'PENDIENTE',createdAt:serverTimestamp()})}
+  catch(x){try{await signOut(auth)}catch{}throw{code:'solicitud:'+(x.code||'error')}}
+  window._pendMsg='ENVIADA';
+  try{await signOut(auth)}catch{}
+  closeM();
+ }catch(x){
+  const M={'auth/email-already-in-use':'Ese correo ya tiene una cuenta. Ingresá, o usá "Recuperar contraseña".','auth/weak-password':'La contraseña es muy débil','auth/invalid-email':'El correo no es válido','auth/operation-not-allowed':'El registro por email no está habilitado en Firebase','auth/network-request-failed':'Sin conexión: intentá de nuevo'};
+  const bb=$('#regb');if(bb){bb.disabled=false;bb.textContent='Enviar solicitud'}
+  toast(M[x&&x.code]||'No se pudo enviar la solicitud ('+(x&&x.code||'error')+')');
+ }finally{window._reg=0}};
+
+/* ---- Aviso al ADMIN de solicitudes pendientes ---- */
+const usersWatchStop=()=>{if(window._uw){try{window._uw()}catch{}window._uw=null}window._un=0};
+const usersBadge=()=>{const b=$('#ub');if(b){b.textContent=window._un||'';b.classList.toggle('hide',!window._un)}};
+const usersWatch=()=>{if(window._uw||!me||role!=='ADMIN')return;let first=true;
+ window._uw=onSnapshot(query(collection(db,'users'),where('role','==','PENDIENTE')),sn=>{
+  window._un=sn.docs.filter(d=>d.data().estado!=='RECHAZADO').length;usersBadge();
+  if(!first)sn.docChanges().filter(c=>c.type==='added'&&!c.doc.metadata.hasPendingWrites).forEach(c=>toast('🕒 Nueva solicitud de cuenta: '+(c.doc.data().email||'')));
+  first=false},er=>console.error('users watch',er))};
+
+/* ---- Pantalla Usuarios y roles (con solicitudes pendientes) ---- */
+async function usersView(){loading();const u=await all('users');
+ const pend=u.filter(x=>x.role==='PENDIENTE'),act=u.filter(x=>x.role!=='PENDIENTE');
+ const fd=x=>x.createdAt&&x.createdAt.toDate?x.createdAt.toDate().toLocaleDateString('es-AR'):'';
+ const nom=x=>((x.apellido||'')+(x.apellido&&x.nombre?', ':'')+(x.nombre||'')).trim();
+ main(`<h2>Usuarios y roles</h2><button class="b" data-a="nu">+ Nuevo usuario</button>${pend.length?`<h3>🕒 Solicitudes de cuenta (${pend.length})</h3>${pend.map(x=>`<div class="card"><b>${esc(nom(x)||'(sin nombre)')}</b>${x.estado==='RECHAZADO'?' <span class="badge">Rechazada</span>':''}<br><small>${esc(x.email)} · ${fd(x)}</small><div class="grid"><button class="b" data-a="uap" data-i="${x.id}">✅ Aprobar</button><button class="b l" data-a="urj" data-i="${x.id}">❌ Rechazar</button></div><button class="b l" data-a="udl" data-i="${x.id}">🗑 Eliminar solicitud</button></div>`).join('')}`:''}<div class="card wrap"><table>${act.map(x=>`<tr><td>${esc(x.email)}${nom(x)?'<br><small>'+esc(nom(x))+'</small>':''}</td><td>${badge(x.role)}</td><td><button class="b l" data-a="ur" data-i="${x.id}">Cambiar rol</button></td></tr>`).join('')}</table>${act.length?'':'<div class="empty">Sin usuarios</div>'}</div><p><small>Para que un SOCIO vea su credencial, su ficha de socio debe tener el mismo email.</small></p>`)}
+acts.uap=id=>modal(`<h3>Aprobar cuenta</h3><p><small>Elegí el rol con el que va a ingresar.</small></p>${fld(['role','Rol',ROLES],'SOCIO')}<button class="b" data-a="uaps" data-i="${id}">Aprobar</button><button class="b l" data-a="cm">Cancelar</button>`);
+acts.uaps=async id=>{try{await updateDoc(doc(db,'users',id),{role:formData().role,estado:'ACTIVO',updatedAt:serverTimestamp()});log('cambio de estado','users',id);closeM();toast('Cuenta aprobada');go('users')}catch(x){toast('No se pudo aprobar ('+(x.code||'error')+')')}};
+acts.urj=async id=>{if(!confirm('¿Rechazar esta solicitud?'))return;try{await updateDoc(doc(db,'users',id),{estado:'RECHAZADO',updatedAt:serverTimestamp()});log('cambio de estado','users',id);toast('Solicitud rechazada');go('users')}catch(x){toast('No se pudo rechazar ('+(x.code||'error')+')')}};
+acts.udl=async id=>{if(!confirm('¿Eliminar esta solicitud? La cuenta de acceso queda creada en Firebase Authentication; si vuelve a ingresar, reaparece como pendiente.'))return;try{await deleteDoc(doc(db,'users',id));log('baja','users',id);toast('Solicitud eliminada');go('users')}catch(x){toast('No se pudo eliminar ('+(x.code||'error')+')')}};
+
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
@@ -957,8 +1016,8 @@ async function pubView(t){
 }
 const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐',chat:'💬',foro:'🗣️',enc:'📊'};
 function route(){
-  if(!me){chStop();chWatchStop();foStop()}if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
-  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML='<div class="nwho">'+esc(me.email)+' · '+role+'</div>'+navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}${k==='chat'?' <span id="chb" class="badge hide" style="background:var(--ac);color:#fff"></span>':''}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();chatWatch();nextEv()}
+  if(!me){chStop();chWatchStop();foStop();usersWatchStop()}if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);{const lm=$('#lmsg'),M=PEND_MSG[window._pendMsg||''];if(lm){lm.textContent=M||'';lm.classList.toggle('hide',!M||!!me)}}
+  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML='<div class="nwho">'+esc(me.email)+' · '+role+'</div>'+navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}${k==='chat'?' <span id="chb" class="badge hide" style="background:var(--ac);color:#fff"></span>':''}${k==='users'?' <span id="ub" class="badge hide" style="background:#dc2626;color:#fff"></span>':''}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();chatWatch();usersWatch();usersBadge();nextEv()}
 }
 
 /* ==== APARIENCIA (tema, color, bordes) ==== */
