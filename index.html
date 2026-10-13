@@ -426,7 +426,7 @@ async function inscribir(ev,pid,tipo,nombre,vehiculo,est,extra={}){
   const act=(await where1('inscripciones','eventoId',ev)).filter(i=>['CONFIRMADO','ACREDITADO'].includes(i.estado)).length;if(e.cupo&&act>=e.cupo&&(est||'CONFIRMADO')==='CONFIRMADO'){if(!confirm('Cupo completo ('+e.cupo+'). ¿Anotar en LISTA DE ESPERA?'))return;est='ESPERA'}
   const i={eventoId:ev,eventoNombre:e.nombre,participanteId:pid,tipoParticipante:tipo,nombre,vehiculo,fechaInscripcion:serverTimestamp(),estado:est||'CONFIRMADO',tokenQR:token,acreditado:false,...extra,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
   await setDoc(doc(db,'inscripciones',token),i);log('inscripcion','inscripciones',token);
-  toast('Inscripción creada');showTicket({id:token,...i});
+  toast('Inscripción creada');try{await acts.ev(ev)}catch(e){console.error(e)}showTicket({id:token,...i});
 }
 
 /* ==============================
