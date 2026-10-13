@@ -104,6 +104,10 @@ nav button{border-radius:calc(var(--r)*.7);text-align:left;width:100%}main{max-w
 .cem{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:2px;max-height:150px;overflow-y:auto;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:.3em;margin-top:.4em}
 .cem button{background:none;border:0;font-size:1.45rem;cursor:pointer;padding:.15em;border-radius:8px;min-height:40px}
 .cem button:hover{background:var(--bd)}
+/* FORO */
+.fot{cursor:pointer;transition:transform .12s,border-color .15s}.fot:hover{border-color:var(--ac);transform:translateY(-1px)}
+.fta{width:100%;padding:.7em .9em;margin:.25em 0 .8em;border:1.5px solid var(--bd);border-radius:calc(var(--r)*.7);background:var(--inp);color:var(--tx);font:inherit;resize:vertical}
+.fta:focus{outline:0;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 25%,transparent)}
 </style>
 <script>try{var u=JSON.parse(localStorage.getItem("acp-ui")||"{}"),d=document.documentElement,t=u.t||"auto";d.dataset.theme=t=="auto"?(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"):t;if(u.a)d.style.setProperty("--ac",u.a);if(u.r)d.style.setProperty("--r",u.r)}catch(e){}</script>
 </head>
@@ -143,7 +147,7 @@ FIREBASE
 ============================== */
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,createUserWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {getFirestore,initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getDocFromCache,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,serverTimestamp,runTransaction,limit,onSnapshot,orderBy} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getDocFromCache,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,serverTimestamp,runTransaction,limit,onSnapshot,orderBy,increment,writeBatch} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // >>> PEGÁ ACÁ LAS CREDENCIALES (Firebase Console > Configuración del proyecto > Tus apps > Web) <<<
 const firebaseConfig = {
@@ -498,7 +502,7 @@ MENÚ POR ROL
 ============================== */
 const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','gastos','ingresos','caja','club','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
 const effPerm=r=>(PERM&&PERM[r])?PERM[r]:defNav(r);
-const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');const b=l.length?l:['cred'];return b.includes('chat')?b:[...b,'chat']};
+const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');const b=l.length?l:['cred'];return ['chat','foro'].reduce((a,k)=>a.includes(k)?a:[...a,k],b)};
 
 /* ==============================
 CAMPOS COMPLETOS Y CATEGORÍAS
@@ -721,27 +725,104 @@ acts.chemo=()=>{$('#cem').classList.toggle('hide')};
 acts.chpick=e=>{const i=$('#chi');if(!i)return;const a=i.selectionStart??i.value.length,b=i.selectionEnd??a;if(i.value.length-(b-a)+e.length>500)return;i.value=i.value.slice(0,a)+e+i.value.slice(b);const c=a+e.length;i.setSelectionRange(c,c);i.dispatchEvent(new Event('input'));if(matchMedia('(pointer:fine)').matches)i.focus()};
 acts.chdel=async id=>{if(!confirm('¿Borrar este mensaje?'))return;try{await deleteDoc(doc(db,'chat',id))}catch(e){toast('No se pudo borrar ('+(e.code||'error')+')')}};
 
+/* ==== FORO (planteos y debates) ==== */
+const foStop=()=>{(window._fo||[]).forEach(u=>{try{u()}catch{}});window._fo=[];window._fi=null};
+const foFmt=d=>new Date(chMs(d)).toLocaleString('es-AR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+const foPos={FAVOR:['👍 A favor','#2e7d32'],CONTRA:['👎 En contra','#b91c1c'],NEUTRAL:['⚪ Neutral','#6b7280']};
+const foTipo=t=>t==='PLANTEO'?['📋 Planteo','#7a1426']:['💬 Debate','#1d4ed8'];
+const foTag=(txt,c)=>`<span class="badge" style="background:${c};color:#fff">${txt}</span>`;
+const foMod=()=>['ADMIN','COMISION'].includes(role);
+
+async function foroView(){
+ foStop();const F=window._ff={list:[],f:'ALL'};
+ main(`<h2>🗣️ Foro</h2><p><small>Armá planteos para que el club vote, o abrí un debate.</small></p><button class="b" data-a="fonew">+ Nuevo tema</button><div id="fof"></div><div id="fol"><div class="loader">Cargando…</div></div>`);
+ F.draw=()=>{
+  const L=F.list.filter(t=>F.f==='ALL'||(F.f==='ABIERTO'?t.estado==='ABIERTO':t.tipo===F.f));
+  $('#fof').innerHTML=[['ALL','Todos'],['PLANTEO','📋 Planteos'],['DEBATE','💬 Debates'],['ABIERTO','Abiertos']].map(([k,l])=>`<button class="b ${F.f===k?'':'l'}" data-a="fofil" data-i="${k}">${l}</button>`).join('');
+  $('#fol').innerHTML=L.map(t=>{const[tl,tc]=foTipo(t.tipo),x=String(t.texto);
+   return `<div class="card fot" data-a="foopen" data-i="${t.id}"><div>${foTag(tl,tc)}${t.estado==='CERRADO'?' <span class="badge">🔒 Cerrado</span>':''}</div><b style="font-size:1.05rem;display:block;margin:.3em 0">${esc(t.titulo)}</b><small style="color:var(--mut)">${esc(x.slice(0,140))}${x.length>140?'…':''}</small><div style="margin-top:.4em"><small>${esc(t.autor)} · ${foFmt({ts:t.ultima})} · 💬 ${t.respCount||0}</small></div></div>`}).join('')||'<div class="empty">No hay temas todavía. ¡Armá el primero!</div>'};
+ window._fo=[onSnapshot(query(collection(db,'foro'),orderBy('ultima','desc'),limit(60)),sn=>{
+  F.list=sn.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));F.draw()},
+  er=>{$('#fol').innerHTML='<div class="empty">Error: '+esc(er.code||er.message)+' — revisá las reglas de Firestore (foro)</div>'})]}
+acts.fofil=k=>{const F=window._ff;if(!F||!F.draw)return;F.f=k;F.draw()};
+acts.foopen=id=>foroTema(id);
+
+acts.fonew=()=>modal(`<h3>Nuevo tema</h3><label>Tipo</label><select id="ftt"><option value="PLANTEO">📋 Planteo (el club vota a favor / en contra)</option><option value="DEBATE">💬 Debate (se discute con respuestas)</option></select><label>Título</label><input id="ftn" maxlength="120" placeholder="Ej: ¿Cambiamos el día de las juntas?"><label>Descripción</label><textarea id="ftx" class="fta" rows="6" maxlength="2000" placeholder="Explicá tu planteo…"></textarea><button class="b" data-a="fosave">Publicar</button><button class="b l" data-a="cm">Cancelar</button>`);
+acts.fosave=()=>{const tipo=$('#ftt').value,titulo=$('#ftn').value.trim().slice(0,120),texto=$('#ftx').value.trim().slice(0,2000);
+ if(titulo.length<3)return toast('Poné un título (mín. 3 letras)');if(!texto)return toast('Escribí la descripción');
+ const ref=doc(collection(db,'foro'));
+ setDoc(ref,{uid:me.uid,autor:chNom(),role,tipo,titulo,texto,estado:'ABIERTO',respCount:0,ultima:serverTimestamp(),ts:serverTimestamp()}).catch(e=>toast('No se pudo publicar ('+(e.code||'error')+')'));
+ closeM();foroTema(ref.id)};
+
+async function foroTema(id){
+ foStop();
+ main(`<button class="b l" data-a="nav" data-i="foro">← Foro</button><div id="fth"><div class="loader">Cargando…</div></div><div id="frl"></div><div id="ffm" class="card hide"><b>Tu respuesta</b><select id="fpos" style="margin-top:.4em"><option value="">Sin posición</option><option value="FAVOR">👍 A favor</option><option value="CONTRA">👎 En contra</option><option value="NEUTRAL">⚪ Neutral</option></select><textarea id="fri" class="fta" rows="3" maxlength="1000" placeholder="Escribí tu respuesta…"></textarea><button class="b" data-a="fosend">Responder</button></div>`);
+ const S=window._fi={id,t:null,rs:[],vs:[]};
+ S.rh=()=>{const t=S.t,box=$('#fth');if(!box)return;
+  if(!t){box.innerHTML='<div class="empty">Este tema ya no existe</div>';$('#ffm').classList.add('hide');return}
+  const cerr=t.estado==='CERRADO',[tl,tc]=foTipo(t.tipo),mod=t.uid===me.uid||foMod();
+  let vot='';
+  if(t.tipo==='PLANTEO'){
+   const v={FAVOR:0,CONTRA:0,ABST:0};S.vs.forEach(x=>{if(v[x.voto]!=null)v[x.voto]++});
+   const tot=v.FAVOR+v.CONTRA+v.ABST,mio=(S.vs.find(x=>x.uid===me.uid)||{}).voto;
+   const bar=(k,l,c)=>`<div style="margin:.5em 0"><button class="b ${mio===k?'':'l'}" data-a="fovote" data-i="${k}" ${cerr?'disabled':''}>${l}</button> <b>${v[k]}</b> <small>(${tot?Math.round(v[k]*100/tot):0}%)</small><div style="height:8px;border-radius:6px;background:var(--bd);overflow:hidden;margin:.2em .2em 0"><i style="display:block;height:100%;width:${tot?v[k]*100/tot:0}%;background:${c}"></i></div></div>`;
+   vot=`<hr style="border:0;border-top:1px solid var(--bd);margin:.8em 0"><b>🗳️ Votación</b> <small>(${tot} voto${tot===1?'':'s'}${cerr?' · cerrada':' · tocá de nuevo tu voto para quitarlo'})</small>${bar('FAVOR','👍 A favor','#2e7d32')}${bar('CONTRA','👎 En contra','#b91c1c')}${bar('ABST','⚪ Abstención','#6b7280')}`}
+  box.innerHTML=`<div class="card"><div>${foTag(tl,tc)}${cerr?' <span class="badge">🔒 Cerrado</span>':''}</div><h2 style="margin:.3em 0">${esc(t.titulo)}</h2><small style="color:var(--mut)">${esc(t.autor)}${['ADMIN','COMISION'].includes(t.role)?' · '+esc(t.role):''} · ${foFmt(t)}</small><div style="white-space:pre-wrap;word-break:break-word;margin-top:.7em">${chLink(t.texto)}</div>${vot}${mod?`<div style="margin-top:.8em"><button class="b l" data-a="fotog">${cerr?'🔓 Reabrir':'🔒 Cerrar tema'}</button><button class="b l" data-a="fotdel">🗑 Borrar tema</button></div>`:''}</div>`;
+  $('#ffm').classList.toggle('hide',cerr);
+  if(cerr&&!$('#frl .cerr'))S.rr()};
+ S.rr=()=>{const box=$('#frl');if(!box)return;
+  const rs=[...S.rs].sort((a,b)=>chMs(a)-chMs(b)),cerr=S.t&&S.t.estado==='CERRADO';
+  box.innerHTML=(rs.length?`<h3>Respuestas (${rs.length})</h3>`:'<div class="empty">Sin respuestas todavía</div>')+rs.map(r=>{
+   const p=foPos[r.pos],can=r.uid===me.uid||foMod()||(S.t&&S.t.uid===me.uid);
+   return `<div class="card"><div><b>${esc(r.autor)}</b>${['ADMIN','COMISION'].includes(r.role)?` <small>· ${esc(r.role)}</small>`:''} ${p?foTag(p[0],p[1]):''}<small style="float:right;color:var(--mut)">${foFmt(r)}</small></div><div style="white-space:pre-wrap;word-break:break-word;margin-top:.4em">${chLink(r.texto)}</div>${can?`<div style="text-align:right"><button class="b l" style="padding:.2em .7em;font-size:.75rem" data-a="fordel" data-i="${r.id}">🗑 Borrar</button></div>`:''}</div>`}).join('')+(cerr?'<div class="empty cerr">🔒 Tema cerrado: ya no se puede responder ni votar</div>':'')};
+ const er=x=>{const b=$('#fth');if(b)b.innerHTML='<div class="empty">Error: '+esc(x.code||x.message)+' — revisá las reglas de Firestore (foro)</div>'};
+ window._fo=[
+  onSnapshot(doc(db,'foro',id),s=>{S.t=s.exists()?{id:s.id,...s.data({serverTimestamps:'estimate'})}:null;S.rh();S.rr();
+   if(S.t&&S.t.tipo==='PLANTEO'&&!S.vl){S.vl=1;window._fo.push(onSnapshot(query(collection(db,'forovotos'),where('temaId','==',id)),sn=>{S.vs=sn.docs.map(d=>d.data());S.rh()},er))}},er),
+  onSnapshot(query(collection(db,'fororesp'),where('temaId','==',id)),sn=>{S.rs=sn.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));S.rr()},er)]}
+
+acts.fosend=()=>{const S=window._fi;if(!S||!S.t||S.t.estado!=='ABIERTO')return;
+ const i=$('#fri'),tx=i.value.trim().slice(0,1000);if(!tx)return;const pos=$('#fpos').value;i.value='';
+ const b=writeBatch(db),r=doc(collection(db,'fororesp'));
+ b.set(r,{temaId:S.id,uid:me.uid,autor:chNom(),role,texto:tx,pos,ts:serverTimestamp()});
+ b.update(doc(db,'foro',S.id),{respCount:increment(1),ultima:serverTimestamp()});
+ b.commit().catch(e=>{i.value=tx;toast('No se pudo responder ('+(e.code||'error')+')')})};
+acts.fordel=id=>{const S=window._fi;if(!S||!confirm('¿Borrar esta respuesta?'))return;
+ const b=writeBatch(db);b.delete(doc(db,'fororesp',id));b.update(doc(db,'foro',S.id),{respCount:increment(-1)});
+ b.commit().catch(e=>toast('No se pudo borrar ('+(e.code||'error')+')'))};
+acts.fovote=k=>{const S=window._fi;if(!S||!S.t||S.t.estado!=='ABIERTO')return;
+ const ref=doc(db,'forovotos',S.id+'_'+me.uid),mio=S.vs.find(x=>x.uid===me.uid);
+ if(mio&&mio.voto===k)return deleteDoc(ref).catch(e=>toast('No se pudo quitar el voto ('+(e.code||'error')+')'));
+ setDoc(ref,{temaId:S.id,uid:me.uid,voto:k,ts:serverTimestamp()}).catch(e=>toast('No se pudo votar ('+(e.code||'error')+')'))};
+acts.fotog=()=>{const S=window._fi;if(!S||!S.t)return;
+ updateDoc(doc(db,'foro',S.id),{estado:S.t.estado==='ABIERTO'?'CERRADO':'ABIERTO'}).catch(e=>toast('No se pudo cambiar ('+(e.code||'error')+')'))};
+acts.fotdel=async()=>{const S=window._fi;if(!S||!confirm('¿Borrar el tema completo con sus respuestas y votos?'))return;
+ try{const ops=[];for(const c of ['fororesp','forovotos'])(await getDocs(query(collection(db,c),where('temaId','==',S.id)))).docs.forEach(d=>ops.push(d.ref));
+  for(let k=0;k<ops.length;k+=400){const b=writeBatch(db);ops.slice(k,k+400).forEach(r=>b.delete(r));await b.commit()}
+  await deleteDoc(doc(db,'foro',S.id));log('baja','foro',S.id);toast('Tema borrado');go('foro')}
+ catch(e){toast('No se pudo borrar ('+(e.code||'error')+')')}};
+
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
-const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','chat','buscar','backup','aud','papelera','users','perm'];
-VIEWS.com=VIEWS.comunicados;VIEWS.chat=['Chat',chatView];
+const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','chat','foro','buscar','backup','aud','papelera','users','perm'];
+VIEWS.com=VIEWS.comunicados;VIEWS.chat=['Chat',chatView];VIEWS.foro=['Foro',foroView];
 VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];VIEWS.perm=['Permisos',permView];
 const PR=['SOCIO','ORGANIZADOR','TESORERO','COMISION'];
-function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&k!=='chat'&&VIEWS[k]);
+function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&k!=='chat'&&k!=='foro'&&VIEWS[k]);
  main(`<h2>Permisos por rol</h2><p><small>Marcá qué módulos ve cada rol. ADMIN siempre ve todo.</small></p><div class="card wrap"><table><tr><th>Módulo</th>${PR.map(r=>`<th>${r}</th>`).join('')}</tr>${mods.map(k=>`<tr><td>${VIEWS[k][0]}</td>${PR.map(r=>`<td><input type="checkbox" class="pc" data-r="${r}" data-k="${k}" ${effPerm(r).includes(k)?'checked':''} style="width:22px;height:22px;min-height:0;margin:0"></td>`).join('')}</tr>`).join('')}</table></div><button class="b" data-a="permsave">Guardar</button><button class="b l" data-a="permreset">Restablecer</button><p><small>Los cambios se aplican la próxima vez que cada usuario abra la app. Esto oculta módulos; la protección real de los datos la dan las reglas de Firestore.</small></p>`)}
 acts.permsave=async()=>{const m={};PR.forEach(r=>m[r]=[]);document.querySelectorAll('.pc').forEach(c=>{if(c.checked)m[c.dataset.r].push(c.dataset.k)});try{await setDoc(doc(db,'config','permisos'),{map:m});PERM=m;toast('Permisos guardados')}catch(e){toast('No se pudo guardar: revisá las reglas de Firestore')}};
 acts.permreset=async()=>{try{await deleteDoc(doc(db,'config','permisos'));PERM=null;toast('Restablecido');permView()}catch(e){toast('No se pudo restablecer')}};
-const go=k=>{window._inFicha=0;$('#nav').classList.remove('open');$('#nbd').classList.remove('open');chStop();if(window._lv){try{window._lv.stop()}catch{}window._lv=null}if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
+const go=k=>{window._inFicha=0;$('#nav').classList.remove('open');$('#nbd').classList.remove('open');chStop();foStop();if(window._lv){try{window._lv.stop()}catch{}window._lv=null}if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
 acts.nav=go;
 async function pubView(t){
   $('#pub').classList.remove('hide');$('#pub').innerHTML='<div class="loader">Cargando…</div>';
   try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='ESPERA')$('#qr').innerHTML='<div class="res warn">⏳ Lista de espera<br><small>El cupo está completo. Si se libera un lugar te avisamos.</small></div>';else if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t);try{const ev=(await getDoc(doc(db,'eventos',d.eventoId))).data();if(ll(ev))$('#pub').insertAdjacentHTML('beforeend',`<p style="text-align:center"><a class="b" href="${mapsUrl(ev)}" target="_blank" rel="noopener">📍 Cómo llegar al evento</a></p>`);if(ev&&ev.seguimiento&&['CONFIRMADO','ACREDITADO'].includes(d.estado))$('#pub').insertAdjacentHTML('beforeend',`<div class="card" style="text-align:center"><b>📡 Seguimiento en vivo</b><p><small>La organización te ve en el mapa mientras tengas esta pantalla abierta y compartiendo. Podés frenar cuando quieras.</small></p><button id="lvbtn" class="b big" data-a="lvgo" data-i="${t}|${d.eventoId}">📡 COMPARTIR MI UBICACIÓN</button><div id="lvst" style="margin-top:.5em"></div></div>`)}catch{}}
   catch(x){console.error('pubView',x);$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'no-existe')+'</small></p>'}
 }
-const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐',chat:'💬'};
+const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐',chat:'💬',foro:'🗣️'};
 function route(){
-  if(!me){chStop();chWatchStop()}if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
+  if(!me){chStop();chWatchStop();foStop()}if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
   if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML='<div class="nwho">'+esc(me.email)+' · '+role+'</div>'+navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}${k==='chat'?' <span id="chb" class="badge hide" style="background:var(--ac);color:#fff"></span>':''}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();chatWatch();nextEv()}
 }
 
@@ -1123,7 +1204,7 @@ const rulesCheck=()=>{if(!window._rulesErr||$('#rb'))return;const d=document.cre
 acts.diag=async()=>{const o=$('#dg'),R=[];o.innerHTML='Probando…';
  const T=async(n,f)=>{try{await f();R.push('✅ '+n)}catch(e){R.push('❌ '+n+' — '+(e.code||e.message))}};
  await T('Leer mi rol',async()=>{const s=await getDoc(doc(db,'users',me.uid));if(!s.exists())throw{code:'no existe users/'+me.uid};if(s.data().role!==role)throw{code:'el rol guardado es '+s.data().role}});
- for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones','chat'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
+ for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones','chat','foro','fororesp','forovotos'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
  await T('Link público (sin login): leer evento',async()=>{const ev=(await getDocs(query(collection(db,'eventos'),limit(1)))).docs[0];if(!ev)throw{code:'no hay eventos cargados'};window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'eventos',ev.id))});
  await T('Link público (sin login): leer inscripción',async()=>{window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'inscripciones','prueba-diagnostico'))});
  let l=0;try{l=+localStorage.getItem('acp-lastbackup')||0}catch{}
