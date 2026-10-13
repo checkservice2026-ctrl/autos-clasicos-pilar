@@ -502,7 +502,7 @@ MENÚ POR ROL
 ============================== */
 const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','gastos','ingresos','caja','club','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
 const effPerm=r=>(PERM&&PERM[r])?PERM[r]:defNav(r);
-const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');const b=l.length?l:['cred'];return ['chat','foro'].reduce((a,k)=>a.includes(k)?a:[...a,k],b)};
+const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');const b=l.length?l:['cred'];return ['chat','foro',...(['ADMIN','COMISION','ORGANIZADOR'].includes(role)?['enc']:[])].reduce((a,k)=>a.includes(k)?a:[...a,k],b)};
 
 /* ==============================
 CAMPOS COMPLETOS Y CATEGORÍAS
@@ -802,14 +802,149 @@ acts.fotdel=async()=>{const S=window._fi;if(!S||!confirm('¿Borrar el tema compl
   await deleteDoc(doc(db,'foro',S.id));log('baja','foro',S.id);toast('Tema borrado');go('foro')}
  catch(e){toast('No se pudo borrar ('+(e.code||'error')+')')}};
 
+/* ==== ENCUESTAS (con link público) ==== */
+const encLink=id=>location.origin+location.pathname+'#encuesta='+id;
+const ENC_TIPOS={unica:'Una opción',multiple:'Varias opciones',texto:'Texto libre',escala:'Escala 1 a 5'};
+const ENC_DISP=new Set(['mailinator.com','guerrillamail.com','guerrillamail.net','guerrillamail.org','sharklasers.com','10minutemail.com','10minutemail.net','tempmail.com','temp-mail.org','temp-mail.io','yopmail.com','yopmail.fr','trashmail.com','getnada.com','dispostable.com','maildrop.cc','throwawaymail.com','fakeinbox.com','mintemail.com','mohmal.com','emailondeck.com','tempail.com','mailnesia.com','spamgourmet.com','burnermail.io','moakt.com','tmpmail.org','discard.email','anonbox.net','fakemail.net','mytemp.email','example.com','example.org','test.com','test.test']);
+const ENC_TYPO={'gmial.com':'gmail.com','gmai.com':'gmail.com','gmail.con':'gmail.com','gmail.co':'gmail.com','gmil.com':'gmail.com','gamil.com':'gmail.com','gnail.com':'gmail.com','gmail.com.ar':'gmail.com','hotmial.com':'hotmail.com','hotmai.com':'hotmail.com','hotmail.con':'hotmail.com','hotnail.com':'hotmail.com','yaho.com':'yahoo.com','yahooo.com':'yahoo.com','yahoo.con':'yahoo.com','outlok.com':'outlook.com','outlook.con':'outlook.com','iclod.com':'icloud.com','icloud.con':'icloud.com','live.con':'live.com'};
+const encHead=(t,d)=>`<div style="text-align:center"><img src="logo.png" alt="" style="max-width:130px;max-height:110px" onerror="this.remove()"><h2>${esc(t||'')}</h2>${d?`<p style="white-space:pre-wrap">${esc(d)}</p>`:''}</div>`;
+
+/* Valida formato, errores de tipeo, correos descartables y que el dominio reciba mails (DNS) */
+const emailCheck=async e=>{
+ if(!/^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(e)||e.length>120||e.includes('..'))return 'El correo no tiene un formato válido';
+ const[u,dom]=e.split('@');
+ if(ENC_TYPO[dom])return '¿Quisiste decir '+u+'@'+ENC_TYPO[dom]+'?';
+ if(ENC_DISP.has(dom))return 'Usá tu correo personal: no se aceptan correos temporales';
+ try{
+  const q=async t=>{const c=new AbortController(),k=setTimeout(()=>c.abort(),4000);try{return await (await fetch('https://dns.google/resolve?name='+encodeURIComponent(dom)+'&type='+t,{signal:c.signal})).json()}finally{clearTimeout(k)}};
+  const j=await q('MX');
+  if(j.Status===3)return 'El dominio "'+dom+'" no existe: revisá el correo';
+  if(j.Status===0&&!(j.Answer&&j.Answer.length)){const a=await q('A');if(a.Status===3||!(a.Answer&&a.Answer.length))return 'El dominio "'+dom+'" no recibe correos: revisá el correo'}
+ }catch{}
+ return ''};
+
+/* ---------- Página pública (cualquier persona con el link) ---------- */
+const encQ=q=>{const n='q_'+q.id,rq=q.req?' *':'';let b='';
+ if(q.tipo==='texto')b=`<textarea name="${n}" class="fta" rows="3" maxlength="500"></textarea>`;
+ else if(q.tipo==='escala')b=`<div style="display:flex;gap:.4em">${[1,2,3,4,5].map(v=>`<label style="flex:1;text-align:center;border:1.5px solid var(--bd);border-radius:10px;padding:.5em 0;cursor:pointer"><input type="radio" name="${n}" value="${v}" style="width:auto;margin:0"><br>${v}</label>`).join('')}</div><div style="display:flex;justify-content:space-between"><small>Mínimo</small><small>Máximo</small></div>`;
+ else b=(q.op||[]).map(o=>`<label style="display:flex;gap:.5em;align-items:center;margin:.3em 0;cursor:pointer"><input type="${q.tipo==='multiple'?'checkbox':'radio'}" name="${n}" value="${esc(o)}" style="width:auto;margin:0">${esc(o)}</label>`).join('');
+ return `<div style="margin:.9em 0"><b>${esc(q.t)}${rq}</b>${q.tipo==='multiple'?'<br><small>Podés elegir varias</small>':''}<div>${b}</div></div>`};
+async function encPub(id){
+ const P=$('#pub');P.classList.remove('hide');P.innerHTML='<div class="loader">Cargando…</div>';
+ try{
+  const sn=await getDoc(doc(db,'encuestas',id));if(!sn.exists())throw 0;const e=sn.data();
+  if(e.estado!=='ABIERTA'){P.innerHTML=`<div class="card">${encHead(e.titulo)}<div class="res warn">Esta encuesta está cerrada</div></div>`;return}
+  let ya=null;try{ya=localStorage.getItem('enc-'+id)}catch{}
+  if(ya){P.innerHTML=`<div class="card">${encHead(e.titulo)}<div class="res ok">✅ Ya enviaste tu respuesta. ¡Gracias!</div></div>`;return}
+  window._enc=e;
+  P.innerHTML=`<div class="card">${encHead(e.titulo,e.descripcion)}<h3>Tus datos</h3><label>Nombre *</label><input name="nombre" maxlength="40" autocomplete="given-name"><label>Apellido *</label><input name="apellido" maxlength="40" autocomplete="family-name"><label>Correo electrónico *</label><input name="email" type="email" maxlength="120" autocomplete="email" inputmode="email"><label>Repetí tu correo *</label><input name="email2" type="email" maxlength="120" autocomplete="off" inputmode="email"><h3>Encuesta</h3>${(e.preguntas||[]).map(encQ).join('')}<input name="web" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true"><button class="b big" data-a="encgo" data-i="${id}">ENVIAR RESPUESTAS</button><p><small>Tu correo solo se usa para identificar tu respuesta. Cada correo puede responder una sola vez.</small></p></div>`;
+ }catch(x){console.error('encPub',x);P.innerHTML='<div class="res bad">⚠ ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'encuesta-no-existe')+'</small></p>'}}
+acts.encgo=async id=>{
+ const P=$('#pub'),E=window._enc;if(!E)return;
+ const v=n=>((P.querySelector('[name="'+n+'"]')||{}).value||'').trim();
+ if(v('web'))return;
+ const nombre=v('nombre').slice(0,40),apellido=v('apellido').slice(0,40),email=v('email').toLowerCase().replace(/\s+/g,'');
+ if(nombre.length<2||apellido.length<2||!/\p{L}/u.test(nombre+apellido))return toast('Completá nombre y apellido');
+ if(!email)return toast('Ingresá tu correo electrónico');
+ if(email!==v('email2').toLowerCase().replace(/\s+/g,''))return toast('Los correos no coinciden');
+ const R={};
+ for(const q of E.preguntas||[]){const n='q_'+q.id;let a;
+  if(q.tipo==='texto')a=v(n).slice(0,500);
+  else if(q.tipo==='multiple'){a=[...P.querySelectorAll('[name="'+n+'"]:checked')].map(x=>x.value)}
+  else{const c=P.querySelector('[name="'+n+'"]:checked');a=c?(q.tipo==='escala'?+c.value:c.value):''}
+  const vacio=Array.isArray(a)?!a.length:(a===''||a==null);
+  if(vacio){if(q.req)return toast('Falta responder: '+q.t)}else R[q.id]=a}
+ const b=P.querySelector('.b.big');b.disabled=true;b.textContent='Verificando…';
+ const er=await emailCheck(email);
+ if(er){b.disabled=false;b.textContent='ENVIAR RESPUESTAS';return toast(er)}
+ b.textContent='Enviando…';
+ try{
+  await Promise.race([setDoc(doc(db,'encresp',id+'_'+email),{encuestaId:id,nombre,apellido,email,respuestas:R,ts:serverTimestamp()}),new Promise((_,rj)=>setTimeout(()=>rj({code:'timeout'}),20000))]);
+  try{localStorage.setItem('enc-'+id,email)}catch{}
+  P.innerHTML=`<div class="card">${encHead(E.titulo)}<div class="res ok">✅ ¡Gracias, ${esc(nombre)}!<br><small>Tu respuesta fue registrada.</small></div></div>`;
+ }catch(x){b.disabled=false;b.textContent='ENVIAR RESPUESTAS';
+  toast(x&&x.code==='permission-denied'?'No se pudo enviar: ese correo ya respondió o la encuesta se cerró':'No se pudo enviar. Revisá tu conexión e intentá de nuevo.')}};
+
+/* ---------- Módulo para el equipo (crear, compartir, resultados) ---------- */
+const encTs=d=>d&&d.ts&&d.ts.toDate?d.ts.toDate():null;
+async function encuestasView(){
+ loading();
+ let es,rs;try{[es,rs]=await Promise.all([all('encuestas'),all('encresp')])}catch(x){return main('<div class="empty">Error: '+esc(x.code||x.message)+' — revisá las reglas de Firestore (encuestas)</div>')}
+ const cnt={};rs.forEach(r=>{cnt[r.encuestaId]=(cnt[r.encuestaId]||0)+1});
+ es.sort((a,b)=>((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0));
+ main(`<h2>📊 Encuestas</h2><p><small>Armá una encuesta, compartí el link y cualquiera puede responder con nombre, apellido y correo.</small></p><button class="b" data-a="encnew">+ Nueva encuesta</button>`+
+  (es.map(e=>{const ab=e.estado==='ABIERTA';return `<div class="card"><div><span class="badge" style="background:${ab?'#2e7d32':'#6b7280'};color:#fff">${ab?'🟢 Abierta':'🔴 Cerrada'}</span> <small>${(e.preguntas||[]).length} pregunta${(e.preguntas||[]).length===1?'':'s'} · ${cnt[e.id]||0} respuesta${(cnt[e.id]||0)===1?'':'s'}</small></div><b style="font-size:1.05rem;display:block;margin:.3em 0">${esc(e.titulo)}</b><div class="grid"><button class="b" data-a="enclink" data-i="${e.id}">🔗 Link</button><button class="b" data-a="encres" data-i="${e.id}">📊 Resultados</button><button class="b l" data-a="encedit" data-i="${e.id}">✏️ Editar</button><button class="b l" data-a="enctog" data-i="${e.id}">${ab?'🔒 Cerrar':'🔓 Reabrir'}</button></div><button class="b l" data-a="encdel" data-i="${e.id}">🗑 Borrar</button></div>`}).join('')||'<div class="empty">Todavía no hay encuestas</div>'))}
+
+const encbSync=()=>{const B=window._eb;if(!B||B.locked||!$('#ebq'))return;
+ B.qs=[...document.querySelectorAll('#ebq [data-qi]')].map((r,i)=>{const o=B.qs[i]||{},ta=r.querySelector('.eq-o');
+  return{id:o.id,t:r.querySelector('.eq-t').value.trim(),tipo:r.querySelector('.eq-k').value,op:ta?ta.value.split('\n').map(x=>x.trim()).filter(Boolean):(o.op||[]),req:r.querySelector('.eq-r').checked}})};
+const encbDraw=()=>{const B=window._eb,box=$('#ebq');if(!B||!box)return;
+ box.innerHTML=B.qs.map((q,i)=>`<div class="card" data-qi="${i}"><div style="display:flex;gap:.4em;align-items:center"><b>${i+1}.</b><input class="eq-t" placeholder="Escribí la pregunta" maxlength="150" value="${esc(q.t||'')}"></div><select class="eq-k">${Object.entries(ENC_TIPOS).map(([k,l])=>`<option value="${k}"${q.tipo===k?' selected':''}>${l}</option>`).join('')}</select>${['unica','multiple'].includes(q.tipo)?`<textarea class="fta eq-o" rows="3" placeholder="Una opción por línea">${esc((q.op||[]).join('\n'))}</textarea>`:''}<label style="display:flex;gap:.4em;align-items:center;margin:.3em 0"><input type="checkbox" class="eq-r" style="width:auto;margin:0"${q.req?' checked':''}> Obligatoria</label><div class="grid"><button class="b l" data-a="encbmv" data-i="${i}|-1">↑</button><button class="b l" data-a="encbmv" data-i="${i}|1">↓</button><button class="b l" data-a="encbdel" data-i="${i}">🗑</button></div></div>`).join('')};
+document.addEventListener('change',e=>{if(e.target.classList&&e.target.classList.contains('eq-k')){encbSync();encbDraw()}});
+const encbNew=()=>{const B=window._eb;B.n=(B.n||0)+1;return{id:'q'+B.n,t:'',tipo:'unica',op:[],req:true}};
+const encEditor=(id,e,locked)=>{
+ const qs=(e.preguntas||[]).map(q=>({...q}));
+ window._eb={id,locked,qs,n:qs.reduce((m,q)=>Math.max(m,+String(q.id).replace(/\D/g,'')||0),0)};
+ if(!locked&&!qs.length)window._eb.qs.push(encbNew());
+ modal(`<h3>${id?'Editar':'Nueva'} encuesta</h3><label>Título *</label><input id="et" maxlength="120" value="${esc(e.titulo||'')}" placeholder="Ej: Encuentro de primavera"><label>Descripción</label><textarea id="ed" class="fta" rows="3" maxlength="600" placeholder="Para qué es la encuesta (opcional)">${esc(e.descripcion||'')}</textarea>${locked?'<p><small>🔒 Ya tiene respuestas: solo se puede cambiar el título y la descripción.</small></p>':'<h3>Preguntas</h3><div id="ebq"></div><button class="b l" data-a="encbadd">+ Agregar pregunta</button>'}<button class="b big" data-a="encsave">Guardar</button><button class="b l big" data-a="cm">Cancelar</button>`);
+ if(!locked)encbDraw()};
+acts.encnew=()=>encEditor(null,{},false);
+acts.encedit=async id=>{const[sn,rs]=await Promise.all([getDoc(doc(db,'encuestas',id)),where1('encresp','encuestaId',id)]);if(!sn.exists())return toast('La encuesta ya no existe');encEditor(id,sn.data(),rs.length>0)};
+acts.encbadd=()=>{encbSync();window._eb.qs.push(encbNew());encbDraw()};
+acts.encbdel=i=>{encbSync();window._eb.qs.splice(+i,1);encbDraw()};
+acts.encbmv=k=>{const[i,d]=k.split('|').map(Number),B=window._eb;encbSync();const j=i+d;if(j<0||j>=B.qs.length)return;[B.qs[i],B.qs[j]]=[B.qs[j],B.qs[i]];encbDraw()};
+acts.encsave=async()=>{const B=window._eb;if(!B)return;
+ const titulo=$('#et').value.trim().slice(0,120),descripcion=$('#ed').value.trim().slice(0,600);
+ if(titulo.length<3)return toast('Poné un título');
+ const data={titulo,descripcion,updatedAt:serverTimestamp()};
+ if(!B.locked){encbSync();if(!B.qs.length)return toast('Agregá al menos una pregunta');
+  for(const q of B.qs){if(!q.t)return toast('Hay una pregunta sin texto');if(['unica','multiple'].includes(q.tipo)&&q.op.length<2)return toast('Las preguntas de opciones necesitan al menos 2 opciones (una por línea)')}
+  data.preguntas=B.qs.map(q=>({id:q.id,t:q.t,tipo:q.tipo,req:!!q.req,op:['unica','multiple'].includes(q.tipo)?q.op:[]}))}
+ try{
+  if(B.id){await updateDoc(doc(db,'encuestas',B.id),data);log('modificacion','encuestas',B.id);closeM();toast('Encuesta guardada');encuestasView()}
+  else{const r=await addDoc(collection(db,'encuestas'),{...data,estado:'ABIERTA',uid:me.uid,createdAt:serverTimestamp()});log('alta','encuestas',r.id);closeM();encuestasView();acts.enclink(r.id)}
+ }catch(x){toast('No se pudo guardar ('+(x.code||'error')+')')}};
+acts.enclink=async id=>{const sn=await getDoc(doc(db,'encuestas',id));if(!sn.exists())return;const e=sn.data(),ab=e.estado==='ABIERTA';
+ modal(`<h3>Link de la encuesta</h3><p><b>${esc(e.titulo)}</b><br>Estado: <b>${ab?'🟢 ABIERTA':'🔴 CERRADA'}</b></p><input readonly value="${encLink(id)}" onclick="this.select()"><div class="grid"><button class="b l" data-a="enccopy" data-i="${id}">COPIAR LINK</button><button class="b" data-a="encwa" data-i="${id}">COMPARTIR WHATSAPP</button></div><p><small>Quien tenga el link puede responder: se le pide nombre, apellido y correo, y cada correo responde una sola vez.</small></p><button class="b l big" data-a="cm">Cerrar</button>`)};
+acts.enccopy=async id=>{try{await navigator.clipboard.writeText(encLink(id));toast('Link copiado')}catch{toast('No se pudo copiar: seleccionalo y copialo a mano')}};
+acts.encwa=async id=>{const e=(await getDoc(doc(db,'encuestas',id))).data();window.open('https://wa.me/?text='+encodeURIComponent('📊 '+e.titulo+'\n\nParticipá respondiendo esta encuesta:\n'+encLink(id)),'_blank')};
+acts.enctog=async id=>{const sn=await getDoc(doc(db,'encuestas',id));if(!sn.exists())return;
+ try{await updateDoc(doc(db,'encuestas',id),{estado:sn.data().estado==='ABIERTA'?'CERRADA':'ABIERTA',updatedAt:serverTimestamp()});log('cambio de estado','encuestas',id);encuestasView()}catch(x){toast('No se pudo cambiar ('+(x.code||'error')+')')}};
+acts.encdel=async id=>{if(!confirm('¿Borrar la encuesta y TODAS sus respuestas? No se puede deshacer.'))return;
+ try{const rs=await where1('encresp','encuestaId',id);
+  for(let k=0;k<rs.length;k+=400){const b=writeBatch(db);rs.slice(k,k+400).forEach(r=>b.delete(doc(db,'encresp',r.id)));await b.commit()}
+  await deleteDoc(doc(db,'encuestas',id));log('baja','encuestas',id);toast('Encuesta borrada');encuestasView()}
+ catch(x){toast('No se pudo borrar ('+(x.code||'error')+')')}};
+
+acts.encres=async id=>{loading();
+ const[sn,rs]=await Promise.all([getDoc(doc(db,'encuestas',id)),where1('encresp','encuestaId',id)]);
+ if(!sn.exists())return main('<div class="empty">La encuesta ya no existe</div>');
+ const e=sn.data();rs.sort((a,b)=>((encTs(a)||0)-(encTs(b)||0)));window._er={id,e,rs};
+ const bar=(l,n,tot,c)=>`<div style="margin:.35em 0"><div style="display:flex;justify-content:space-between;gap:.5em"><span>${esc(l)}</span><b>${n} <small>(${tot?Math.round(n*100/tot):0}%)</small></b></div><div style="height:8px;border-radius:6px;background:var(--bd);overflow:hidden"><i style="display:block;height:100%;width:${tot?n*100/tot:0}%;background:${c}"></i></div></div>`;
+ const bloques=(e.preguntas||[]).map((q,qi)=>{
+  const vals=rs.map(r=>({r,v:(r.respuestas||{})[q.id]})).filter(x=>x.v!=null&&x.v!==''&&!(Array.isArray(x.v)&&!x.v.length)),n=vals.length;
+  let h='';
+  if(q.tipo==='texto')h=vals.map(x=>`<div class="card"><small>${esc(x.r.nombre)} ${esc(x.r.apellido)}</small><div style="white-space:pre-wrap;word-break:break-word">${esc(x.v)}</div></div>`).join('')||'<small>Sin respuestas</small>';
+  else if(q.tipo==='escala'){const c=[1,2,3,4,5].map(k=>vals.filter(x=>+x.v===k).length),prom=n?(vals.reduce((s,x)=>s+(+x.v),0)/n):0;h=`<small>Promedio: <b>${prom.toFixed(2)}</b> / 5</small>`+c.map((k,i)=>bar(String(i+1),k,n,'var(--ac)')).join('')}
+  else{const m=new Map((q.op||[]).map(o=>[o,0]));vals.forEach(x=>(Array.isArray(x.v)?x.v:[x.v]).forEach(o=>m.set(o,(m.get(o)||0)+1)));h=[...m.entries()].map(([o,k])=>bar(o,k,n,'var(--ac)')).join('')}
+  return `<div class="card"><b>${qi+1}. ${esc(q.t)}</b> <small>(${n} respuesta${n===1?'':'s'}${q.tipo==='multiple'?' · se puede elegir varias':''})</small><div style="margin-top:.4em">${h}</div></div>`}).join('');
+ main(`<button class="b l" data-a="nav" data-i="enc">← Encuestas</button><h2>${esc(e.titulo)}</h2><p><b style="font-size:1.4rem">${rs.length}</b> respuesta${rs.length===1?'':'s'} · ${e.estado==='ABIERTA'?'🟢 abierta':'🔴 cerrada'}</p><button class="b" data-a="enccsv">⬇ Exportar CSV</button><button class="b l" data-a="enclink" data-i="${id}">🔗 Link</button>${bloques}<h3>Quiénes respondieron</h3><div class="card wrap"><table><tr><th>Fecha</th><th>Nombre</th><th>Correo</th><th></th></tr>${rs.map(r=>{const d=encTs(r);return `<tr><td><small>${d?d.toLocaleString('es-AR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</small></td><td>${esc(r.nombre)} ${esc(r.apellido)}</td><td>${esc(r.email)}</td><td><button class="b l" data-a="encrdel" data-i="${esc(r.id)}">🗑</button></td></tr>`}).join('')||'<tr><td colspan="4">Todavía nadie respondió</td></tr>'}</table></div>`)};
+acts.encrdel=async rid=>{if(!confirm('¿Borrar esta respuesta? Ese correo podrá volver a responder.'))return;
+ try{await deleteDoc(doc(db,'encresp',rid));log('baja','encresp',rid);acts.encres(window._er.id)}catch(x){toast('No se pudo borrar ('+(x.code||'error')+')')}};
+acts.enccsv=()=>{const D=window._er;if(!D)return;const qs=D.e.preguntas||[];
+ const c=v=>{let s=String(v==null?'':v);if(/^[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
+ const rows=[['Fecha','Nombre','Apellido','Correo',...qs.map(q=>q.t)],...D.rs.map(r=>{const d=encTs(r);return[d?d.toLocaleString('es-AR'):'',r.nombre,r.apellido,r.email,...qs.map(q=>{const v=(r.respuestas||{})[q.id];return Array.isArray(v)?v.join(' | '):(v==null?'':v)})]})];
+ const blob=new Blob(['\ufeff'+rows.map(r=>r.map(c).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='encuesta-'+String(D.e.titulo).replace(/[^\w]+/g,'_').slice(0,40)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
-const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','chat','foro','buscar','backup','aud','papelera','users','perm'];
-VIEWS.com=VIEWS.comunicados;VIEWS.chat=['Chat',chatView];VIEWS.foro=['Foro',foroView];
+const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','chat','foro','enc','buscar','backup','aud','papelera','users','perm'];
+VIEWS.com=VIEWS.comunicados;VIEWS.chat=['Chat',chatView];VIEWS.foro=['Foro',foroView];VIEWS.enc=['Encuestas',encuestasView];
 VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];VIEWS.perm=['Permisos',permView];
 const PR=['SOCIO','ORGANIZADOR','TESORERO','COMISION'];
-function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&k!=='chat'&&k!=='foro'&&VIEWS[k]);
+function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&k!=='chat'&&k!=='foro'&&k!=='enc'&&VIEWS[k]);
  main(`<h2>Permisos por rol</h2><p><small>Marcá qué módulos ve cada rol. ADMIN siempre ve todo.</small></p><div class="card wrap"><table><tr><th>Módulo</th>${PR.map(r=>`<th>${r}</th>`).join('')}</tr>${mods.map(k=>`<tr><td>${VIEWS[k][0]}</td>${PR.map(r=>`<td><input type="checkbox" class="pc" data-r="${r}" data-k="${k}" ${effPerm(r).includes(k)?'checked':''} style="width:22px;height:22px;min-height:0;margin:0"></td>`).join('')}</tr>`).join('')}</table></div><button class="b" data-a="permsave">Guardar</button><button class="b l" data-a="permreset">Restablecer</button><p><small>Los cambios se aplican la próxima vez que cada usuario abra la app. Esto oculta módulos; la protección real de los datos la dan las reglas de Firestore.</small></p>`)}
 acts.permsave=async()=>{const m={};PR.forEach(r=>m[r]=[]);document.querySelectorAll('.pc').forEach(c=>{if(c.checked)m[c.dataset.r].push(c.dataset.k)});try{await setDoc(doc(db,'config','permisos'),{map:m});PERM=m;toast('Permisos guardados')}catch(e){toast('No se pudo guardar: revisá las reglas de Firestore')}};
 acts.permreset=async()=>{try{await deleteDoc(doc(db,'config','permisos'));PERM=null;toast('Restablecido');permView()}catch(e){toast('No se pudo restablecer')}};
@@ -820,7 +955,7 @@ async function pubView(t){
   try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='ESPERA')$('#qr').innerHTML='<div class="res warn">⏳ Lista de espera<br><small>El cupo está completo. Si se libera un lugar te avisamos.</small></div>';else if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t);try{const ev=(await getDoc(doc(db,'eventos',d.eventoId))).data();if(ll(ev))$('#pub').insertAdjacentHTML('beforeend',`<p style="text-align:center"><a class="b" href="${mapsUrl(ev)}" target="_blank" rel="noopener">📍 Cómo llegar al evento</a></p>`);if(ev&&ev.seguimiento&&['CONFIRMADO','ACREDITADO'].includes(d.estado))$('#pub').insertAdjacentHTML('beforeend',`<div class="card" style="text-align:center"><b>📡 Seguimiento en vivo</b><p><small>La organización te ve en el mapa mientras tengas esta pantalla abierta y compartiendo. Podés frenar cuando quieras.</small></p><button id="lvbtn" class="b big" data-a="lvgo" data-i="${t}|${d.eventoId}">📡 COMPARTIR MI UBICACIÓN</button><div id="lvst" style="margin-top:.5em"></div></div>`)}catch{}}
   catch(x){console.error('pubView',x);$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'no-existe')+'</small></p>'}
 }
-const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐',chat:'💬',foro:'🗣️'};
+const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐',chat:'💬',foro:'🗣️',enc:'📊'};
 function route(){
   if(!me){chStop();chWatchStop();foStop()}if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);
   if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML='<div class="nwho">'+esc(me.email)+' · '+role+'</div>'+navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}${k==='chat'?' <span id="chb" class="badge hide" style="background:var(--ac);color:#fff"></span>':''}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();chatWatch();nextEv()}
@@ -1204,7 +1339,7 @@ const rulesCheck=()=>{if(!window._rulesErr||$('#rb'))return;const d=document.cre
 acts.diag=async()=>{const o=$('#dg'),R=[];o.innerHTML='Probando…';
  const T=async(n,f)=>{try{await f();R.push('✅ '+n)}catch(e){R.push('❌ '+n+' — '+(e.code||e.message))}};
  await T('Leer mi rol',async()=>{const s=await getDoc(doc(db,'users',me.uid));if(!s.exists())throw{code:'no existe users/'+me.uid};if(s.data().role!==role)throw{code:'el rol guardado es '+s.data().role}});
- for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones','chat','foro','fororesp','forovotos'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
+ for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones','chat','foro','fororesp','forovotos','encuestas','encresp'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
  await T('Link público (sin login): leer evento',async()=>{const ev=(await getDocs(query(collection(db,'eventos'),limit(1)))).docs[0];if(!ev)throw{code:'no hay eventos cargados'};window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'eventos',ev.id))});
  await T('Link público (sin login): leer inscripción',async()=>{window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'inscripciones','prueba-diagnostico'))});
  let l=0;try{l=+localStorage.getItem('acp-lastbackup')||0}catch{}
@@ -1241,10 +1376,10 @@ acts.insgo=async id=>{
   location.hash='#acreditacion='+t;pubView(t);
  }catch(x){b.disabled=false;b.textContent='INSCRIBIRME';toast('No se pudo enviar. Revisá tu conexión e intentá de nuevo.')}
 };
-const m=location.hash.match(/^#acreditacion=(.+)$/);const mi=location.hash.match(/^#inscripcion=(.+)$/);
+const m=location.hash.match(/^#acreditacion=(.+)$/);const mi=location.hash.match(/^#inscripcion=(.+)$/);const mq=location.hash.match(/^#encuesta=(.+)$/);
 Promise.all([splashDone,m?Promise.resolve():authReady]).then(()=>{
   $('#splash').style.opacity=0;setTimeout(()=>$('#splash').remove(),600);
-  if(m)pubView(decodeURIComponent(m[1]));else if(mi)insView(decodeURIComponent(mi[1]));else{started=true;route()}
+  if(m)pubView(decodeURIComponent(m[1]));else if(mi)insView(decodeURIComponent(mi[1]));else if(mq)encPub(decodeURIComponent(mq[1]));else{started=true;route()}
 });
 </script>
 <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
