@@ -205,10 +205,10 @@ const splashDone=new Promise(r=>{const t0=performance.now(),f=$('#pfill'),pc=$('
   setTimeout(()=>{f.style.width='100%';pc.textContent='100%';r()},5000)});
 const authReady=new Promise(r=>onAuthStateChanged(auth,async u=>{
  if(u&&window._reg){me=null;r();return}
- me=u;let pend='';
+ me=u;let pend='';window._pn=null;window._unom='';
  if(u){window._rulesErr=null;
   try{const ref=doc(db,'users',u.uid),sn=await getDoc(ref);
-   if(sn.exists()){role=sn.data().role;if(role==='PENDIENTE')pend=sn.data().estado==='RECHAZADO'?'RECHAZADO':'PENDIENTE'}
+   if(sn.exists()){role=sn.data().role;window._unom=((sn.data().nombre||'')+' '+(sn.data().apellido||'')).trim();if(role==='PENDIENTE')pend=sn.data().estado==='RECHAZADO'?'RECHAZADO':'PENDIENTE'}
    else{pend='PENDIENTE';try{await setDoc(ref,{email:u.email,nombre:'',apellido:'',role:'PENDIENTE',estado:'PENDIENTE',createdAt:serverTimestamp()})}catch{}}}
   catch(e){role='SOCIO';if(e&&e.code==='permission-denied')window._rulesErr=e.code}
   if(pend){me=null;window._pendMsg=pend;try{await signOut(auth)}catch{}}
@@ -514,7 +514,7 @@ MENÚ POR ROL
 ============================== */
 const defNav=r=>r==='SOCIO'?['cred','cal','gal','com']:r==='TESORERO'?['dash','cuotas','fin','gastos','ingresos','caja','club','socios','buscar','backup']:r==='ORGANIZADOR'?['dash','eventos','part','acred','modo','socios','vehiculos','cal','gal','buscar']:NAVK.filter(k=>(k!=='users'&&k!=='perm')||r==='ADMIN');
 const effPerm=r=>(PERM&&PERM[r])?PERM[r]:defNav(r);
-const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');const b=l.length?l:['cred'];return ['chat','foro',...(['ADMIN','COMISION','ORGANIZADOR'].includes(role)?['enc']:[])].reduce((a,k)=>a.includes(k)?a:[...a,k],b)};
+const navFor=()=>{let l=effPerm(role).filter(k=>VIEWS[k]);if(role==='ADMIN')l=NAVK.filter(k=>l.includes(k)||k==='users'||k==='perm');else l=l.filter(k=>k!=='users'&&k!=='perm');const b=l.length?l:['cred'];return ['chat','dm','foro',...(['ADMIN','COMISION','ORGANIZADOR'].includes(role)?['enc']:[])].reduce((a,k)=>a.includes(k)?a:[...a,k],b)};
 
 /* ==============================
 CAMPOS COMPLETOS Y CATEGORÍAS
@@ -694,7 +694,7 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 
 
 /* ==== CHAT DEL CLUB ==== */
-const chNom=()=>{const n=(me.displayName||me.email.split('@')[0]).replace(/[._-]+/g,' ');return n.charAt(0).toUpperCase()+n.slice(1)};
+const chNom=()=>{if(window._pn)return window._pn;if(window._unom)return window._unom;const n=(me.displayName||me.email.split('@')[0]).replace(/[._-]+/g,' ');return n.charAt(0).toUpperCase()+n.slice(1)};
 const chSeenGet=()=>{try{return +localStorage.getItem('acp-chat-seen-'+me.uid)||0}catch{return 0}};
 const chSeenSet=()=>{try{localStorage.setItem('acp-chat-seen-'+me.uid,String(Date.now()))}catch{}};
 const chBadge=n=>{const b=$('#chb');if(b){b.textContent=n>9?'9+':n||'';b.classList.toggle('hide',!n)}};
@@ -996,28 +996,109 @@ acts.uaps=async id=>{try{await updateDoc(doc(db,'users',id),{role:formData().rol
 acts.urj=async id=>{if(!confirm('¿Rechazar esta solicitud?'))return;try{await updateDoc(doc(db,'users',id),{estado:'RECHAZADO',updatedAt:serverTimestamp()});log('cambio de estado','users',id);toast('Solicitud rechazada');go('users')}catch(x){toast('No se pudo rechazar ('+(x.code||'error')+')')}};
 acts.udl=async id=>{if(!confirm('¿Eliminar esta solicitud? La cuenta de acceso queda creada en Firebase Authentication; si vuelve a ingresar, reaparece como pendiente.'))return;try{await deleteDoc(doc(db,'users',id));log('baja','users',id);toast('Solicitud eliminada');go('users')}catch(x){toast('No se pudo eliminar ('+(x.code||'error')+')')}};
 
+/* ==== MENSAJES DIRECTOS (uno a uno) ==== */
+const dmCid=(a,b)=>a<b?a+'_'+b:b+'_'+a;
+const dmSeenGet=()=>{try{return JSON.parse(localStorage.getItem('acp-dm-seen-'+me.uid)||'{}')}catch{return{}}};
+const dmSeenSet=cid=>{try{const m=dmSeenGet();m[cid]=Date.now();localStorage.setItem('acp-dm-seen-'+me.uid,JSON.stringify(m))}catch{}};
+const dmStop=()=>{if(window._dmv){try{window._dmv()}catch{}window._dmv=null}window._dmc=null;window._dmList=null};
+const dmWatchStop=()=>{if(window._dw){try{window._dw()}catch{}window._dw=null}window._dmn=0;window._dml=[]};
+const dmBadge=()=>{const b=$('#dmb');if(b){const n=window._dmn||0;b.textContent=n>9?'9+':n||'';b.classList.toggle('hide',!n)}};
+const dmUnread=(c,seen)=>c.ultDe&&c.ultDe!==me.uid&&chMs({ts:c.ultTs})>(seen[c.id]||0);
+const dmRecount=()=>{const seen=dmSeenGet();window._dmn=(window._dml||[]).filter(c=>dmUnread(c,seen)).length};
+const dmDir=async()=>{const l=await all('perfiles');window._dir=new Map(l.map(p=>[p.id,p.nombre||'Usuario']));return l};
+const dmName=uid=>(window._dir&&window._dir.get(uid))||'Usuario';
+
+/* Directorio: cada usuario aprobado publica solo su nombre para que otros puedan escribirle */
+const dmPerfil=async()=>{if(!me)return;
+ try{const ref=doc(db,'perfiles',me.uid),sn=await getDoc(ref);
+  if(sn.exists())window._pn=sn.data().nombre;
+  else{const n=chNom();window._pn=n;await setDoc(ref,{uid:me.uid,nombre:n,ts:serverTimestamp()})}}
+ catch(e){console.error('perfil',e)}};
+
+const dmWatch=()=>{if(window._dw||!me)return;let first=true;dmDir().catch(()=>{});
+ window._dw=onSnapshot(query(collection(db,'dm'),where('participantes','array-contains',me.uid)),sn=>{
+  window._dml=sn.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));
+  const cur=window._dmc;if(cur)dmSeenSet(cur.cid);
+  dmRecount();dmBadge();
+  if(!first)sn.docChanges().filter(c=>c.type!=='removed'&&!c.doc.metadata.hasPendingWrites).forEach(c=>{
+   const d=c.doc.data();if(d.ultDe&&d.ultDe!==me.uid&&!(window._dmc&&window._dmc.cid===c.doc.id))toast('✉️ '+dmName(d.ultDe)+': '+String(d.ult||'').slice(0,50))});
+  first=false;if(window._dmList)window._dmList()},er=>console.error('dm',er))};
+
+async function dmView(){
+ dmStop();
+ main(`<h2>✉️ Mensajes</h2><button class="b" data-a="dmnew">+ Nuevo mensaje</button><button class="b l" data-a="dmname">✏️ Mi nombre</button><div id="dml"><div class="loader">Cargando…</div></div>`);
+ const draw=()=>{const seen=dmSeenGet(),box=$('#dml');if(!box)return;
+  const L=(window._dml||[]).slice().sort((a,b)=>chMs({ts:b.ultTs})-chMs({ts:a.ultTs}));
+  box.innerHTML=L.map(c=>{const o=(c.participantes||[]).find(x=>x!==me.uid),un=dmUnread(c,seen);
+   return `<div class="card fot" data-a="dmopen" data-i="${esc(o)}"><b>${esc(dmName(o))}</b>${un?' <span class="badge" style="background:#dc2626;color:#fff">nuevo</span>':''}<small style="float:right;color:var(--mut)">${foFmt({ts:c.ultTs})}</small><br><small style="color:var(--mut)">${c.ultDe===me.uid?'Vos: ':''}${esc(c.ult||'')}</small></div>`}).join('')||'<div class="empty">Todavía no tenés conversaciones. Tocá "+ Nuevo mensaje".</div>'};
+ window._dmList=draw;draw();
+ dmDir().then(draw).catch(()=>{})}
+
+acts.dmnew=async()=>{
+ const L=(await dmDir().catch(()=>[])).filter(p=>p.id!==me.uid&&p.nombre).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+ modal(`<h3>Nuevo mensaje</h3><input id="dmq" placeholder="Buscar por nombre…" autocomplete="off"><div id="dmr"></div><button class="b l big" data-a="cm">Cancelar</button>`);
+ const draw=()=>{const q=$('#dmq').value.toLowerCase().trim();
+  $('#dmr').innerHTML=L.filter(p=>p.nombre.toLowerCase().includes(q)).slice(0,30).map(p=>`<div class="card fot" data-a="dmopen" data-i="${esc(p.id)}"><b>${esc(p.nombre)}</b></div>`).join('')||'<div class="empty">Sin resultados. Las personas aparecen acá después de ingresar por primera vez.</div>'};
+ $('#dmq').oninput=draw;draw()};
+acts.dmopen=o=>{closeM();dmConv(o)};
+
+async function dmConv(o){
+ dmStop();if(!window._dir)await dmDir().catch(()=>{});
+ const cid=dmCid(me.uid,o);window._dmc={cid,o};
+ main(`<div class="chat"><div style="display:flex;gap:.5em;align-items:center"><button class="b l" data-a="nav" data-i="dm">←</button><h2 style="margin:0">${esc(dmName(o))}</h2></div><div id="chm"><div class="loader">Cargando…</div></div><div id="cem" class="cem hide">${CHEMO.map(e=>`<button type="button" data-a="chpick" data-i="${e}">${e}</button>`).join('')}</div><div class="cin"><button type="button" class="b l eb" data-a="chemo" title="Emoticones">😊</button><textarea id="chi" rows="1" maxlength="500" placeholder="Escribí un mensaje…"></textarea><button class="b" data-a="dmsend">Enviar</button></div></div>`);
+ const box=$('#chm'),inp=$('#chi');
+ const draw=sn=>{
+  const ms=sn.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})})).reverse();
+  const near=box.scrollHeight-box.scrollTop-box.clientHeight<140,last=ms[ms.length-1];
+  let day='',h='';
+  for(const m of ms){const dt=new Date(chMs(m)),dk=dt.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+   if(dk!==day){day=dk;h+=`<div class="cdy">${esc(dk)}</div>`}
+   const mine=m.de===me.uid;
+   h+=`<div class="cb${mine?' me':''}">${chLink(m.texto)}<span class="ct">${dt.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}${mine?`<button class="cx" data-a="dmdel" data-i="${m.id}" title="Borrar">🗑</button>`:''}</span></div>`}
+  box.innerHTML=h||'<div class="empty">Empezá la conversación 👋</div>';
+  if(near||(last&&last.de===me.uid)||!box.dataset.ok)box.scrollTop=box.scrollHeight;
+  box.dataset.ok=1;dmSeenSet(cid);dmRecount();dmBadge()};
+ window._dmv=onSnapshot(query(collection(db,'dm',cid,'msgs'),orderBy('ts','desc'),limit(100)),draw,er=>{box.innerHTML='<div class="empty">Error: '+esc(er.code||er.message)+' — revisá las reglas de Firestore (dm)</div>'});
+ inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();acts.dmsend()}});
+ inp.addEventListener('input',()=>{inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,120)+'px'})}
+
+acts.dmsend=()=>{const C=window._dmc,i=$('#chi');if(!C||!i)return;const t=i.value.trim().slice(0,500);if(!t)return;
+ const em=$('#cem');if(em)em.classList.add('hide');
+ i.value='';i.style.height='auto';i.focus();
+ const[a,b]=C.cid.split('_'),bt=writeBatch(db);
+ bt.set(doc(collection(db,'dm',C.cid,'msgs')),{de:me.uid,texto:t,ts:serverTimestamp()});
+ bt.set(doc(db,'dm',C.cid),{participantes:[a,b],ult:t.slice(0,60),ultTs:serverTimestamp(),ultDe:me.uid},{merge:true});
+ bt.commit().catch(e=>toast('No se pudo enviar ('+(e.code||'error')+')'))};
+acts.dmdel=async id=>{const C=window._dmc;if(!C||!confirm('¿Borrar este mensaje?'))return;
+ try{await deleteDoc(doc(db,'dm',C.cid,'msgs',id))}catch(e){toast('No se pudo borrar ('+(e.code||'error')+')')}};
+
+acts.dmname=()=>modal(`<h3>Mi nombre</h3><p><small>Así te ven las demás personas en los mensajes y en el chat del club.</small></p><input id="dmn" maxlength="40" value="${esc(window._pn||chNom())}"><button class="b big" data-a="dmnsave">Guardar</button><button class="b l big" data-a="cm">Cancelar</button>`);
+acts.dmnsave=async()=>{const n=$('#dmn').value.trim().slice(0,40);if(n.length<2)return toast('Poné un nombre (mín. 2 letras)');
+ try{await setDoc(doc(db,'perfiles',me.uid),{uid:me.uid,nombre:n,ts:serverTimestamp()});window._pn=n;if(window._dir)window._dir.set(me.uid,n);closeM();toast('Nombre actualizado')}
+ catch(e){toast('No se pudo guardar ('+(e.code||'error')+')')}};
+
 const VIEWS={dash:['Panel',dash],socios:['Socios',()=>listView('socios','Socios')],vehiculos:['Vehículos',()=>listView('vehiculos','Vehículos')],eventos:['Eventos',()=>listView('eventos','Eventos')],acred:['Acreditación',acredView],cuotas:['Cuotas',()=>listView('cuotas','Cuotas')],fin:['Finanzas',finView],buscar:['Buscar',buscar],backup:['Backup',backupView],aud:['Auditoría',audView]};
 VIEWS.ingresos=['Ingresos',()=>listView('ingresos','Ingresos')];VIEWS.egresos=['Egresos',()=>listView('egresos','Egresos')];
 VIEWS.comunicados=['Comunicados',()=>listView('comunicados','Comunicados')];VIEWS.agenda=['Calendario',calView];VIEWS.cal=['Calendario',calView];VIEWS.cred=['Credencial',credView];VIEWS.gal=['Galería',galView];
-const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','chat','foro','enc','buscar','backup','aud','papelera','users','perm'];
-VIEWS.com=VIEWS.comunicados;VIEWS.chat=['Chat',chatView];VIEWS.foro=['Foro',foroView];VIEWS.enc=['Encuestas',encuestasView];
+const NAVK=['dash','socios','vehiculos','eventos','part','acred','modo','cuotas','fin','gastos','ingresos','caja','club','cal','com','gal','cred','chat','dm','foro','enc','buscar','backup','aud','papelera','users','perm'];
+VIEWS.com=VIEWS.comunicados;VIEWS.chat=['Chat',chatView];VIEWS.foro=['Foro',foroView];VIEWS.enc=['Encuestas',encuestasView];VIEWS.dm=['Mensajes',dmView];
 VIEWS.part=['Participantes',()=>listView('participantes','Participantes')];VIEWS.modo=['Modo evento',()=>acredView(true)];VIEWS.users=['Usuarios',usersView];VIEWS.perm=['Permisos',permView];
 const PR=['SOCIO','ORGANIZADOR','TESORERO','COMISION'];
-function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&k!=='chat'&&k!=='foro'&&k!=='enc'&&VIEWS[k]);
+function permView(){const mods=NAVK.filter(k=>k!=='users'&&k!=='perm'&&k!=='chat'&&k!=='dm'&&k!=='foro'&&k!=='enc'&&VIEWS[k]);
  main(`<h2>Permisos por rol</h2><p><small>Marcá qué módulos ve cada rol. ADMIN siempre ve todo.</small></p><div class="card wrap"><table><tr><th>Módulo</th>${PR.map(r=>`<th>${r}</th>`).join('')}</tr>${mods.map(k=>`<tr><td>${VIEWS[k][0]}</td>${PR.map(r=>`<td><input type="checkbox" class="pc" data-r="${r}" data-k="${k}" ${effPerm(r).includes(k)?'checked':''} style="width:22px;height:22px;min-height:0;margin:0"></td>`).join('')}</tr>`).join('')}</table></div><button class="b" data-a="permsave">Guardar</button><button class="b l" data-a="permreset">Restablecer</button><p><small>Los cambios se aplican la próxima vez que cada usuario abra la app. Esto oculta módulos; la protección real de los datos la dan las reglas de Firestore.</small></p>`)}
 acts.permsave=async()=>{const m={};PR.forEach(r=>m[r]=[]);document.querySelectorAll('.pc').forEach(c=>{if(c.checked)m[c.dataset.r].push(c.dataset.k)});try{await setDoc(doc(db,'config','permisos'),{map:m});PERM=m;toast('Permisos guardados')}catch(e){toast('No se pudo guardar: revisá las reglas de Firestore')}};
 acts.permreset=async()=>{try{await deleteDoc(doc(db,'config','permisos'));PERM=null;toast('Restablecido');permView()}catch(e){toast('No se pudo restablecer')}};
-const go=k=>{window._inFicha=0;$('#nav').classList.remove('open');$('#nbd').classList.remove('open');chStop();foStop();if(window._lv){try{window._lv.stop()}catch{}window._lv=null}if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
+const go=k=>{window._inFicha=0;$('#nav').classList.remove('open');$('#nbd').classList.remove('open');chStop();foStop();dmStop();if(window._lv){try{window._lv.stop()}catch{}window._lv=null}if(scanner){try{scanner.stop()}catch{}scanner=null}document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===k));VIEWS[k][1]().catch(x=>{console.error(x);main('<div class="empty">Error al cargar: '+esc(x.code||x.message)+'</div>')})};
 acts.nav=go;
 async function pubView(t){
   $('#pub').classList.remove('hide');$('#pub').innerHTML='<div class="loader">Cargando…</div>';
   try{const s=await getDoc(doc(db,'inscripciones',t));if(!s.exists())throw 0;const d=s.data();$('#pub').innerHTML=ticketHtml({id:t,...d});if(d.estado==='ESPERA')$('#qr').innerHTML='<div class="res warn">⏳ Lista de espera<br><small>El cupo está completo. Si se libera un lugar te avisamos.</small></div>';else if(d.estado==='PREINSCRIPTO')$('#qr').innerHTML='<div class="res warn">⏳ Inscripción recibida<br><small>Pendiente de confirmación. Guardá este enlace: cuando te confirmen, acá vas a ver tu QR.</small></div>';else await qrCanvas($('#qr'),t);try{const ev=(await getDoc(doc(db,'eventos',d.eventoId))).data();if(ll(ev))$('#pub').insertAdjacentHTML('beforeend',`<p style="text-align:center"><a class="b" href="${mapsUrl(ev)}" target="_blank" rel="noopener">📍 Cómo llegar al evento</a></p>`);if(ev&&ev.seguimiento&&['CONFIRMADO','ACREDITADO'].includes(d.estado))$('#pub').insertAdjacentHTML('beforeend',`<div class="card" style="text-align:center"><b>📡 Seguimiento en vivo</b><p><small>La organización te ve en el mapa mientras tengas esta pantalla abierta y compartiendo. Podés frenar cuando quieras.</small></p><button id="lvbtn" class="b big" data-a="lvgo" data-i="${t}|${d.eventoId}">📡 COMPARTIR MI UBICACIÓN</button><div id="lvst" style="margin-top:.5em"></div></div>`)}catch{}}
   catch(x){console.error('pubView',x);$('#pub').innerHTML='<div class="res bad">🔴 ENLACE NO VÁLIDO</div><p style="text-align:center"><small>'+esc(x&&x.code?x.code:'no-existe')+'</small></p>'}
 }
-const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐',chat:'💬',foro:'🗣️',enc:'📊'};
+const NAVI={dash:'🏠',socios:'👥',vehiculos:'🚗',eventos:'📅',part:'🧑‍🤝‍🧑',acred:'✅',modo:'🎫',cuotas:'💳',fin:'💰',gastos:'💸',ingresos:'💵',caja:'🗄️',club:'📈',papelera:'🗑️',ingresos:'⬆️',egresos:'⬇️',cal:'🗓️',agenda:'🗓️',com:'📢',comunicados:'📢',gal:'🖼️',cred:'🪪',buscar:'🔎',backup:'💾',aud:'📋',users:'👤',perm:'🔐',chat:'💬',foro:'🗣️',enc:'📊',dm:'✉️'};
 function route(){
-  if(!me){chStop();chWatchStop();foStop();usersWatchStop()}if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);{const lm=$('#lmsg'),M=PEND_MSG[window._pendMsg||''];if(lm){lm.textContent=M||'';lm.classList.toggle('hide',!M||!!me)}}
-  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML='<div class="nwho">'+esc(me.email)+' · '+role+'</div>'+navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}${k==='chat'?' <span id="chb" class="badge hide" style="background:var(--ac);color:#fff"></span>':''}${k==='users'?' <span id="ub" class="badge hide" style="background:#dc2626;color:#fff"></span>':''}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();chatWatch();usersWatch();usersBadge();nextEv()}
+  if(!me){chStop();chWatchStop();foStop();usersWatchStop();dmWatchStop();dmStop()}if(!me&&window._nb){window._nb();window._nb=null}$('#login').classList.toggle('hide',!!me);$('#app').classList.toggle('hide',!me);{const lm=$('#lmsg'),M=PEND_MSG[window._pendMsg||''];if(lm){lm.textContent=M||'';lm.classList.toggle('hide',!M||!!me)}}
+  if(me){$('#who').textContent=me.email+' · '+role;$('#nav').innerHTML='<div class="nwho">'+esc(me.email)+' · '+role+'</div>'+navFor().map(k=>`<button data-a="nav" data-i="${k}">${(NAVI[k]||'•')+' '+VIEWS[k][0]}${k==='chat'?' <span id="chb" class="badge hide" style="background:var(--ac);color:#fff"></span>':''}${k==='users'?' <span id="ub" class="badge hide" style="background:#dc2626;color:#fff"></span>':''}${k==='dm'?' <span id="dmb" class="badge hide" style="background:#dc2626;color:#fff"></span>':''}</button>`).join('');go(navFor()[0]);backupCheck();rulesCheck();notifWatch();chatWatch();usersWatch();usersBadge();dmPerfil();dmWatch();dmBadge();nextEv()}
 }
 
 /* ==== APARIENCIA (tema, color, bordes) ==== */
@@ -1398,7 +1479,7 @@ const rulesCheck=()=>{if(!window._rulesErr||$('#rb'))return;const d=document.cre
 acts.diag=async()=>{const o=$('#dg'),R=[];o.innerHTML='Probando…';
  const T=async(n,f)=>{try{await f();R.push('✅ '+n)}catch(e){R.push('❌ '+n+' — '+(e.code||e.message))}};
  await T('Leer mi rol',async()=>{const s=await getDoc(doc(db,'users',me.uid));if(!s.exists())throw{code:'no existe users/'+me.uid};if(s.data().role!==role)throw{code:'el rol guardado es '+s.data().role}});
- for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones','chat','foro','fororesp','forovotos','encuestas','encresp'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
+ for(const c of ['socios','vehiculos','eventos','inscripciones','participantes','cuotas','ingresos','egresos','comunicados','agenda','galeria','config','auditoria','ubicaciones','chat','foro','fororesp','forovotos','encuestas','encresp','perfiles'])await T('Leer '+c,()=>getDocs(query(collection(db,c),limit(1))));
  await T('Link público (sin login): leer evento',async()=>{const ev=(await getDocs(query(collection(db,'eventos'),limit(1)))).docs[0];if(!ev)throw{code:'no hay eventos cargados'};window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'eventos',ev.id))});
  await T('Link público (sin login): leer inscripción',async()=>{window._pub=window._pub||initializeApp(firebaseConfig,'pub');await getDoc(doc(getFirestore(window._pub),'inscripciones','prueba-diagnostico'))});
  let l=0;try{l=+localStorage.getItem('acp-lastbackup')||0}catch{}
